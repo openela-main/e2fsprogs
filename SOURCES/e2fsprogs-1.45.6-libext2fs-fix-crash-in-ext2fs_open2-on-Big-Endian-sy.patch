@@ -1,0 +1,59 @@
+From db2efc9e0a8cdb70afc8dd7c9621da9376da7afb Mon Sep 17 00:00:00 2001
+From: Theodore Ts'o <tytso@mit.edu>
+Date: Thu, 26 Dec 2019 23:19:54 -0500
+Subject: [PATCH 01/46] libext2fs: fix crash in ext2fs_open2() on Big Endian
+ systems
+Content-Type: text/plain
+
+Commit e6069a05: ("Teach ext2fs_open2() to honor the
+EXT2_FLAG_SUPER_ONLY flag") changed how the function
+ext2fs_group_desc() handled a request for a gdp pointer for a group
+larger than the number of groups in the file system; it now returns
+NULL, instead of returning a pointer beyond the end of the array.
+
+Previously, the ext2fs_open2() function would swap all of the block
+group descriptors in a block, even if they are beyond the end of the
+file system.  This was OK, since we were not overrunning the allocated
+memory, since it was rounded to a block boundary.  But now that
+ext2fs_group_desc() would return NULL for those gdp, it would cause
+ext2fs_open2(), when it was byte swapping the block group descriptors
+on Big Endian systems, to dereference a null pointer and crash.
+
+This commit adds a NULL pointer check to avoid byte swapping those
+block group descriptors in a bg descriptor block, but which are beyond
+the end of the file system, to address this crash.
+
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Reported-by: Anatoly Pugachev <matorola@gmail.com>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ lib/ext2fs/openfs.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/lib/ext2fs/openfs.c b/lib/ext2fs/openfs.c
+index 51b54a44..e457ce1a 100644
+--- a/lib/ext2fs/openfs.c
++++ b/lib/ext2fs/openfs.c
+@@ -433,7 +433,8 @@ errcode_t ext2fs_open2(const char *name, const char *io_options,
+ 		gdp = (struct ext2_group_desc *) dest;
+ 		for (j=0; j < groups_per_block*first_meta_bg; j++) {
+ 			gdp = ext2fs_group_desc(fs, fs->group_desc, j);
+-			ext2fs_swap_group_desc2(fs, gdp);
++			if (gdp)
++				ext2fs_swap_group_desc2(fs, gdp);
+ 		}
+ #endif
+ 		dest += fs->blocksize*first_meta_bg;
+@@ -453,7 +454,8 @@ errcode_t ext2fs_open2(const char *name, const char *io_options,
+ 		for (j=0; j < groups_per_block; j++) {
+ 			gdp = ext2fs_group_desc(fs, fs->group_desc,
+ 						i * groups_per_block + j);
+-			ext2fs_swap_group_desc2(fs, gdp);
++			if (gdp)
++				ext2fs_swap_group_desc2(fs, gdp);
+ 		}
+ #endif
+ 		dest += fs->blocksize;
+-- 
+2.35.1
+

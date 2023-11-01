@@ -1,0 +1,37 @@
+From 8f0e75091cfcbdfbfa0f6d0e379e153ddaa268ac Mon Sep 17 00:00:00 2001
+From: wuguanghao <wuguanghao3@huawei.com>
+Date: Wed, 30 Jun 2021 16:27:15 +0800
+Subject: [PATCH 28/46] zap_sector: fix memory leak
+Content-Type: text/plain
+
+In zap_sector(), need free buf before return,
+otherwise it will cause memory leak.
+
+Signed-off-by: Wu Guanghao <wuguanghao3@huawei.com>
+Signed-off-by: Zhiqiang Liu <liuzhiqiang26@huawei.com>
+Reviewed-by: Wu Bo <wubo40@huawei.com>
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ misc/mke2fs.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/misc/mke2fs.c b/misc/mke2fs.c
+index 0184a3a8..389d0981 100644
+--- a/misc/mke2fs.c
++++ b/misc/mke2fs.c
+@@ -582,8 +582,10 @@ static void zap_sector(ext2_filsys fs, int sect, int nsect)
+ 		else {
+ 			magic = (unsigned int *) (buf + BSD_LABEL_OFFSET);
+ 			if ((*magic == BSD_DISKMAGIC) ||
+-			    (*magic == BSD_MAGICDISK))
++			    (*magic == BSD_MAGICDISK)) {
++				free(buf);
+ 				return;
++			}
+ 		}
+ 	}
+ 
+-- 
+2.35.1
+

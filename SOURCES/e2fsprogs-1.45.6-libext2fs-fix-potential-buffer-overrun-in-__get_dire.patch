@@ -1,0 +1,40 @@
+From b7466a55e89aa6d6a649734f2b1b24a03390bcef Mon Sep 17 00:00:00 2001
+From: Theodore Ts'o <tytso@mit.edu>
+Date: Wed, 26 Aug 2020 16:29:29 -0400
+Subject: [PATCH 08/46] libext2fs: fix potential buffer overrun in
+ __get_dirent_tail()
+Content-Type: text/plain
+
+If the file system is corrupted, there is a potential of a read-only
+buffer overrun.  Fortunately, we don't actually use the result of that
+pointer dereference, and the overrun is at most 64k.
+
+Google-Bug-Id: #158564737
+Fixes: eb88b751745b ("libext2fs: make ext2fs_dirent_has_tail() more strict")
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ lib/ext2fs/csum.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/lib/ext2fs/csum.c b/lib/ext2fs/csum.c
+index a7172580..2151003b 100644
+--- a/lib/ext2fs/csum.c
++++ b/lib/ext2fs/csum.c
+@@ -266,12 +266,11 @@ static errcode_t __get_dirent_tail(ext2_filsys fs,
+ 	d = dirent;
+ 	top = EXT2_DIRENT_TAIL(dirent, fs->blocksize);
+ 
+-	rec_len = translate(d->rec_len);
+ 	while ((void *) d < top) {
++		rec_len = translate(d->rec_len);
+ 		if ((rec_len < 8) || (rec_len & 0x03))
+ 			return EXT2_ET_DIR_CORRUPTED;
+ 		d = (struct ext2_dir_entry *)(((char *)d) + rec_len);
+-		rec_len = translate(d->rec_len);
+ 	}
+ 
+ 	if ((void *)d > ((void *)dirent + fs->blocksize))
+-- 
+2.35.1
+

@@ -1,0 +1,66 @@
+From c976fd2e72678a171693d2b6333c2c499ef4d588 Mon Sep 17 00:00:00 2001
+From: Lukas Czerner <lczerner@redhat.com>
+Date: Fri, 6 Aug 2021 11:58:20 +0200
+Subject: [PATCH 44/46] libsupport: fix potental NULL pointer dereferences in
+ quota functions
+Content-Type: text/plain
+
+get_dq() function can fail when the memory allocation fails and so we
+could end up dereferencing NULL pointer. Fix it.
+
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+---
+ lib/support/mkquota.c      | 8 ++++++--
+ lib/support/quotaio_tree.c | 2 +-
+ 2 files changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/lib/support/mkquota.c b/lib/support/mkquota.c
+index ef50c9ab..280b1046 100644
+--- a/lib/support/mkquota.c
++++ b/lib/support/mkquota.c
+@@ -432,7 +432,8 @@ void quota_data_sub(quota_ctx_t qctx, struct ext2_inode_large *inode,
+ 		dict = qctx->quota_dict[qtype];
+ 		if (dict) {
+ 			dq = get_dq(dict, get_qid(inode, qtype));
+-			dq->dq_dqb.dqb_curspace -= space;
++			if (dq)
++				dq->dq_dqb.dqb_curspace -= space;
+ 		}
+ 	}
+ }
+@@ -459,7 +460,8 @@ void quota_data_inodes(quota_ctx_t qctx, struct ext2_inode_large *inode,
+ 		dict = qctx->quota_dict[qtype];
+ 		if (dict) {
+ 			dq = get_dq(dict, get_qid(inode, qtype));
+-			dq->dq_dqb.dqb_curinodes += adjust;
++			if (dq)
++				dq->dq_dqb.dqb_curinodes += adjust;
+ 		}
+ 	}
+ }
+@@ -532,6 +534,8 @@ static int scan_dquots_callback(struct dquot *dquot, void *cb_data)
+ 	struct dquot *dq;
+ 
+ 	dq = get_dq(quota_dict, dquot->dq_id);
++	if (!dq)
++		return -1;
+ 	dq->dq_id = dquot->dq_id;
+ 	dq->dq_flags |= DQF_SEEN;
+ 
+diff --git a/lib/support/quotaio_tree.c b/lib/support/quotaio_tree.c
+index 6cc4fb5b..5910e637 100644
+--- a/lib/support/quotaio_tree.c
++++ b/lib/support/quotaio_tree.c
+@@ -601,7 +601,7 @@ static int report_tree(struct dquot *dquot, unsigned int blk, int depth,
+ 	__le32 *ref = (__le32 *) buf;
+ 
+ 	if (!buf)
+-		return 0;
++		return -1;
+ 
+ 	read_blk(dquot->dq_h, blk, buf);
+ 	if (depth == QT_TREEDEPTH - 1) {
+-- 
+2.35.1
+

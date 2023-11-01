@@ -1,0 +1,34 @@
+From 42e4b2148a42ce35d5bc86586341a887928ec4dc Mon Sep 17 00:00:00 2001
+From: Lukas Czerner <lczerner@redhat.com>
+Date: Tue, 17 Dec 2019 11:24:31 +0100
+Subject: [PATCH 3/7] mke2fs.conf: Introduce rhel6 and rhel7 fs_type
+
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ misc/mke2fs.conf.in | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/misc/mke2fs.conf.in b/misc/mke2fs.conf.in
+index 01e35cf8..a533b210 100644
+--- a/misc/mke2fs.conf.in
++++ b/misc/mke2fs.conf.in
+@@ -14,6 +14,16 @@
+ 		features = has_journal,extent,huge_file,flex_bg,metadata_csum,64bit,dir_nlink,extra_isize
+ 		inode_size = 256
+ 	}
++	rhel6_ext4 = {
++		features = has_journal,extent,huge_file,flex_bg,uninit_bg,dir_nlink,extra_isize
++		inode_size = 256
++		enable_periodic_fsck = 1
++		default_mntopts = ""
++	}
++	rhel7_ext4 = {
++		features = has_journal,extent,huge_file,flex_bg,uninit_bg,dir_nlink,extra_isize,64bit
++		inode_size = 256
++	}
+ 	small = {
+ 		blocksize = 1024
+ 		inode_size = 128
+-- 
+2.21.3
+

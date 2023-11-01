@@ -1,0 +1,51 @@
+From 9039cf5c5da439f6c65435c0a2b9ae16989940e1 Mon Sep 17 00:00:00 2001
+From: Lukas Czerner <lczerner@redhat.com>
+Date: Tue, 14 Jan 2020 20:56:41 +0100
+Subject: [PATCH 7/7] ext2fs: fix ABI change in the struct_ext2_filsys
+ structure
+
+Upstream increased size of the struct_ext2_filsys structure by adding
+new encoding member. However this represents ABI breakage within a major
+RHEL release. To avoid it use some of the reserved space in the
+struct_ext2_filsys structure.
+
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ lib/ext2fs/ext2fs.h | 11 ++++++++---
+ 1 file changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/lib/ext2fs/ext2fs.h b/lib/ext2fs/ext2fs.h
+index ba83534c..32c75171 100644
+--- a/lib/ext2fs/ext2fs.h
++++ b/lib/ext2fs/ext2fs.h
+@@ -250,10 +250,17 @@ struct struct_ext2_filsys {
+ 	int				cluster_ratio_bits;
+ 	__u16				default_bitmap_type;
+ 	__u16				pad;
++
++	/*
++	 * RedHat specific change to prevent ABI change by using 8
++	 * reserved bytes
++	 */
++	const struct ext2fs_nls_table *encoding;
++
+ 	/*
+ 	 * Reserved for future expansion
+ 	 */
+-	__u32				reserved[5];
++	__u32				reserved[5 - (sizeof(long int)/4)];
+ 
+ 	/*
+ 	 * Reserved for the use of the calling application.
+@@ -304,8 +311,6 @@ struct struct_ext2_filsys {
+ 
+ 	/* hashmap for SHA of data blocks */
+ 	struct ext2fs_hashmap* block_sha_map;
+-
+-	const struct ext2fs_nls_table *encoding;
+ };
+ 
+ #if EXT2_FLAT_INCLUDES
+-- 
+2.21.3
+

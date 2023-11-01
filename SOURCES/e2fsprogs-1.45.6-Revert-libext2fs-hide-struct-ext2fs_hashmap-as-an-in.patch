@@ -1,0 +1,86 @@
+From cdbe6f07c929b0c9a80b7fbeb61b3a9f66015085 Mon Sep 17 00:00:00 2001
+From: Lukas Czerner <lczerner@redhat.com>
+Date: Tue, 14 Jan 2020 09:49:31 +0100
+Subject: [PATCH 6/7] Revert "libext2fs: hide struct ext2fs_hashmap as an
+ internal implementation detail"
+
+This reverts commit ef54444e6d1da4b464c11e749c9643ed945a770b
+because it breaks ABI.
+
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ lib/ext2fs/hashmap.c | 16 ----------------
+ lib/ext2fs/hashmap.h | 30 +++++++++++++++++++++---------
+ 2 files changed, 21 insertions(+), 25 deletions(-)
+
+diff --git a/lib/ext2fs/hashmap.c b/lib/ext2fs/hashmap.c
+index ffe61ce9..3d8ee814 100644
+--- a/lib/ext2fs/hashmap.c
++++ b/lib/ext2fs/hashmap.c
+@@ -1,22 +1,6 @@
+ #include "hashmap.h"
+ #include <string.h>
+ 
+-struct ext2fs_hashmap {
+-	uint32_t size;
+-	uint32_t(*hash)(const void *key, size_t len);
+-	void(*free)(void*);
+-	struct ext2fs_hashmap_entry *first;
+-	struct ext2fs_hashmap_entry *last;
+-#if __GNUC_PREREQ (4, 8)
+-#pragma GCC diagnostic push
+-#pragma GCC diagnostic ignored "-Wpedantic"
+-#endif
+-	struct ext2fs_hashmap_entry *entries[0];
+-#if __GNUC_PREREQ (4, 8)
+-#pragma GCC diagnostic pop
+-#endif
+-};
+-
+ uint32_t ext2fs_djb2_hash(const void *str, size_t size)
+ {
+ 	int c;
+diff --git a/lib/ext2fs/hashmap.h b/lib/ext2fs/hashmap.h
+index dcfa7455..656d3d90 100644
+--- a/lib/ext2fs/hashmap.h
++++ b/lib/ext2fs/hashmap.h
+@@ -13,15 +13,27 @@
+ #endif
+ #endif
+ 
+-struct ext2fs_hashmap;
+-
+-struct ext2fs_hashmap_entry {
+-	void *data;
+-	const void *key;
+-	size_t key_len;
+-	struct ext2fs_hashmap_entry *next;
+-	struct ext2fs_hashmap_entry *list_next;
+-	struct ext2fs_hashmap_entry *list_prev;
++struct ext2fs_hashmap {
++	uint32_t size;
++	uint32_t(*hash)(const void *key, size_t len);
++	void(*free)(void*);
++	struct ext2fs_hashmap_entry *first;
++	struct ext2fs_hashmap_entry *last;
++	struct ext2fs_hashmap_entry {
++		void *data;
++		const void *key;
++		size_t key_len;
++		struct ext2fs_hashmap_entry *next;
++		struct ext2fs_hashmap_entry *list_next;
++		struct ext2fs_hashmap_entry *list_prev;
++#if __GNUC_PREREQ (4, 8)
++#pragma GCC diagnostic push
++#pragma GCC diagnostic ignored "-Wpedantic"
++#endif
++	} *entries[0];
++#if __GNUC_PREREQ (4, 8)
++#pragma GCC diagnostic pop
++#endif
+ };
+ 
+ struct ext2fs_hashmap *ext2fs_hashmap_create(
+-- 
+2.21.3
+

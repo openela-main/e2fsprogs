@@ -1,0 +1,43 @@
+From 0ec67ba5063b1fdcad4142633338c2cc98b60b5b Mon Sep 17 00:00:00 2001
+From: Lukas Czerner <lczerner@redhat.com>
+Date: Wed, 16 Feb 2022 11:12:28 +0100
+Subject: [PATCH] tests: specify inode size in r_corrupt_fs
+
+Inode size will have an effect on the minimum resize size and this will
+have an effect on the test output. Stabilize the output by specifying
+the inode size instead of relying on the system configuration.
+
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ tests/r_corrupt_fs/expect | 2 +-
+ tests/r_corrupt_fs/script | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/tests/r_corrupt_fs/expect b/tests/r_corrupt_fs/expect
+index fe0f2bc4..fbc0c23e 100644
+--- a/tests/r_corrupt_fs/expect
++++ b/tests/r_corrupt_fs/expect
+@@ -1,4 +1,4 @@
+-mke2fs -q -F -t ext4 -o Linux -b 1024 test.img 32M
++mke2fs -q -F -t ext4 -o Linux -b 1024 -I 256 test.img 32M
+ debugfs -w -R "set_bg 1 free_blocks_count 65536" /tmp/foo.img
+ resize2fs -P /tmp/foo.img
+ Estimated minimum size of the filesystem: 6604
+diff --git a/tests/r_corrupt_fs/script b/tests/r_corrupt_fs/script
+index f6d3a89d..45bbe071 100644
+--- a/tests/r_corrupt_fs/script
++++ b/tests/r_corrupt_fs/script
+@@ -11,8 +11,8 @@ else
+ 	EXP=$test_dir/expect
+ fi
+ 
+-echo mke2fs -q -F -t ext4 -o Linux -b 1024 test.img 32M > $OUT.new
+-$MKE2FS -q -F -t ext4 -o Linux -b 1024 $TMPFILE 32M >> $OUT.new 2>&1
++echo mke2fs -q -F -t ext4 -o Linux -b 1024 -I 256 test.img 32M > $OUT.new
++$MKE2FS -q -F -t ext4 -o Linux -b 1024 -I 256 $TMPFILE 32M >> $OUT.new 2>&1
+ 
+ echo debugfs -w -R \"set_bg 1 free_blocks_count 65536\" /tmp/foo.img >> $OUT.new
+ $DEBUGFS -w -R "set_bg 1 free_blocks_count 65536" $TMPFILE > /dev/null 2>&1
+-- 
+2.34.1
+

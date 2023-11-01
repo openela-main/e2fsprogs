@@ -1,0 +1,54 @@
+From 381bc5d98b2a8a65b1f559e31e67361a761aefee Mon Sep 17 00:00:00 2001
+From: Luis Henriques <lhenriques@suse.de>
+Date: Wed, 28 Oct 2020 15:55:50 +0000
+Subject: [PATCH 14/46] filefrag: handle invalid st_dev and blksize cases
+Content-Type: text/plain
+
+It is possible to crash filefrag with a "Floating point exception" in
+two different scenarios:
+
+1. When fstat() returns a device ID set to 0
+2. When FIGETBSZ ioctl returns a blocksize of 0
+
+In both scenarios a divide-by-zero will occur in frag_report() because
+variable blksize will be set to zero.
+
+I've managed to trigger this crash with an old CephFS kernel client,
+using xfstest generic/519.  The first scenario has been fixed by kernel
+commit 75c9627efb72 ("ceph: map snapid to anonymous bdev ID").  The
+second scenario is also fixed with commit 8f97d1e99149 ("vfs: fix
+FIGETBSZ ioctl on an overlayfs file").
+
+However, it is desirable to handle these two scenarios gracefully by
+checking these conditions explicitly.
+
+Signed-off-by: Luis Henriques <lhenriques@suse.de>
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ misc/filefrag.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/misc/filefrag.c b/misc/filefrag.c
+index 032535f3..a5b9bfe9 100644
+--- a/misc/filefrag.c
++++ b/misc/filefrag.c
+@@ -418,13 +418,13 @@ static int frag_report(const char *filename)
+ 		goto out_close;
+ 	}
+ 
+-	if (last_device != st.st_dev) {
++	if ((last_device != st.st_dev) || !st.st_dev) {
+ 		if (fstatfs(fd, &fsinfo) < 0) {
+ 			rc = -errno;
+ 			perror("fstatfs");
+ 			goto out_close;
+ 		}
+-		if (ioctl(fd, FIGETBSZ, &blksize) < 0)
++		if ((ioctl(fd, FIGETBSZ, &blksize) < 0) || !blksize)
+ 			blksize = fsinfo.f_bsize;
+ 		if (verbose)
+ 			printf("Filesystem type is: %lx\n",
+-- 
+2.35.1
+

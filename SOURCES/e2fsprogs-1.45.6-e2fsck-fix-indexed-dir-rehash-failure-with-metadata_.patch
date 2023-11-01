@@ -1,0 +1,43 @@
+From 5ddac7d248ad346b80702a397c886df4d1ec4f08 Mon Sep 17 00:00:00 2001
+From: Jan Kara <jack@suse.cz>
+Date: Thu, 13 Feb 2020 11:15:57 +0100
+Subject: [PATCH 05/46] e2fsck: fix indexed dir rehash failure with
+ metadata_csum enabled
+Content-Type: text/plain
+
+E2fsck directory rehashing code can fail with ENOSPC due to a bug in
+ext2fs_htree_intnode_maxrecs() which fails to take metadata checksum
+into account and thus e.g. e2fsck can decide to create 1 indirect level
+of index tree when two are actually needed. Fix the logic to account for
+metadata checksum.
+
+Reviewed-by: Andreas Dilger <adilger@dilger.ca>
+Signed-off-by: Jan Kara <jack@suse.cz>
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ lib/ext2fs/ext2fs.h | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/lib/ext2fs/ext2fs.h b/lib/ext2fs/ext2fs.h
+index 32c75171..d9aec525 100644
+--- a/lib/ext2fs/ext2fs.h
++++ b/lib/ext2fs/ext2fs.h
+@@ -2040,7 +2040,13 @@ _INLINE_ blk_t ext2fs_inode_data_blocks(ext2_filsys fs,
+ 
+ _INLINE_ int ext2fs_htree_intnode_maxrecs(ext2_filsys fs, int blocks)
+ {
+-	return blocks * ((fs->blocksize - 8) / sizeof(struct ext2_dx_entry));
++	int csum_size = 0;
++
++	if ((EXT2_SB(fs->super)->s_feature_ro_compat &
++	     EXT4_FEATURE_RO_COMPAT_METADATA_CSUM) != 0)
++		csum_size = sizeof(struct ext2_dx_tail);
++	return blocks * ((fs->blocksize - (8 + csum_size)) /
++						sizeof(struct ext2_dx_entry));
+ }
+ 
+ /*
+-- 
+2.35.1
+

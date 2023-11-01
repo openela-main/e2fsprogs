@@ -1,0 +1,35 @@
+From 4b74f91ad7480d71853ae1170d065917afc426a2 Mon Sep 17 00:00:00 2001
+From: Theodore Ts'o <tytso@mit.edu>
+Date: Thu, 16 Jan 2020 18:56:49 -0500
+Subject: [PATCH 03/46] libext2fs: teach ext2fs_flush() to check if group
+ descriptors are loaded
+Content-Type: text/plain
+
+If the EXT2_FLAG_SUPER_ONLY is not set, and the group descriptors are
+not loaded, ext2fs_flush[2]() will return EXT2_ET_NO_GDESC.
+
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ lib/ext2fs/closefs.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/lib/ext2fs/closefs.c b/lib/ext2fs/closefs.c
+index 1d4d5b7f..6814cdc3 100644
+--- a/lib/ext2fs/closefs.c
++++ b/lib/ext2fs/closefs.c
+@@ -293,6 +293,11 @@ errcode_t ext2fs_flush2(ext2_filsys fs, int flags)
+ 
+ 	EXT2_CHECK_MAGIC(fs, EXT2_ET_MAGIC_EXT2FS_FILSYS);
+ 
++	if ((fs->flags & EXT2_FLAG_SUPER_ONLY) == 0 &&
++	    !ext2fs_has_feature_journal_dev(fs->super) &&
++	    fs->group_desc == NULL)
++		return EXT2_ET_NO_GDESC;
++
+ 	fs_state = fs->super->s_state;
+ 	feature_incompat = fs->super->s_feature_incompat;
+ 
+-- 
+2.35.1
+

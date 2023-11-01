@@ -1,0 +1,38 @@
+From 06116f6d053e398d13634df911bcb105d0fb2416 Mon Sep 17 00:00:00 2001
+From: Lukas Czerner <lczerner@redhat.com>
+Date: Sun, 15 Dec 2019 12:42:28 +0100
+Subject: [PATCH 1/7] Makefile.in: Disable e2scrub
+
+e2scrub system is still new and we're not ready to support it yet, so
+just disbale it and not even build it.
+
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ Makefile.in | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/Makefile.in b/Makefile.in
+index b951c017..34e2048d 100644
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -13,7 +13,6 @@ INSTALL = @INSTALL@
+ @DEBUGFS_CMT@DEBUGFS_DIR= debugfs
+ @UUID_CMT@UUID_LIB_SUBDIR= lib/uuid
+ @BLKID_CMT@BLKID_LIB_SUBDIR= lib/blkid
+-@E2SCRUB_CMT@E2SCRUB_DIR= scrub
+ @ALL_CMT@SUPPORT_LIB_SUBDIR= lib/support
+ @ALL_CMT@E2P_LIB_SUBDIR= lib/e2p
+ @ALL_CMT@EXT2FS_LIB_SUBDIR= lib/ext2fs
+@@ -21,8 +20,7 @@ INSTALL = @INSTALL@
+ LIB_SUBDIRS=lib/et lib/ss $(E2P_LIB_SUBDIR) $(UUID_LIB_SUBDIR) \
+ 	$(BLKID_LIB_SUBDIR) $(SUPPORT_LIB_SUBDIR) $(EXT2FS_LIB_SUBDIR) intl
+ 
+-PROG_SUBDIRS=e2fsck $(DEBUGFS_DIR) misc $(RESIZE_DIR) tests/progs po \
+-	$(E2SCRUB_DIR)
++PROG_SUBDIRS=e2fsck $(DEBUGFS_DIR) misc $(RESIZE_DIR) tests/progs po
+ 
+ SUBDIRS=util $(LIB_SUBDIRS) $(PROG_SUBDIRS) tests
+ 
+-- 
+2.21.3
+

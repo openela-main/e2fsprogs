@@ -1,0 +1,59 @@
+From 742255d914bf06fa8e8a3f048aae2c738657af52 Mon Sep 17 00:00:00 2001
+From: Theodore Ts'o <tytso@mit.edu>
+Date: Fri, 2 Oct 2020 14:47:25 -0400
+Subject: [PATCH 11/46] resize2fs: prevent block group descriptors from
+ overflowing the first bg
+Content-Type: text/plain
+
+For 1k block file systems, resizing a file system larger than
+1073610752 blocks will result in the size of the block group
+descriptors to be so large that it will overlap with the backup
+superblock in block group #1.   This problem can be reproduced via:
+
+    mke2fs -t ext4 /tmp/foo.img 200M
+    resize2fs /tmp/foo.img 1T
+    e2fsck -f /tmp/foo.img
+
+https://github.com/tytso/e2fsprogs/issues/50
+
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ resize/main.c | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/resize/main.c b/resize/main.c
+index a0c31c06..5e771d2a 100644
+--- a/resize/main.c
++++ b/resize/main.c
+@@ -269,6 +269,8 @@ int main (int argc, char ** argv)
+ 	long		sysval;
+ 	int		len, mount_flags;
+ 	char		*mtpt, *undo_file = NULL;
++	dgrp_t		new_group_desc_count;
++	unsigned long	new_desc_blocks;
+ 
+ #ifdef ENABLE_NLS
+ 	setlocale(LC_MESSAGES, "");
+@@ -528,6 +530,18 @@ int main (int argc, char ** argv)
+ 			exit(1);
+ 		}
+ 	}
++	new_group_desc_count = ext2fs_div64_ceil(new_size -
++				fs->super->s_first_data_block,
++						 EXT2_BLOCKS_PER_GROUP(fs->super));
++	new_desc_blocks = ext2fs_div_ceil(new_group_desc_count,
++					  EXT2_DESC_PER_BLOCK(fs->super));
++	if ((new_desc_blocks + fs->super->s_first_data_block) >
++	    EXT2_BLOCKS_PER_GROUP(fs->super)) {
++		com_err(program_name, 0,
++			_("New size results in too many block group "
++			  "descriptors.\n"));
++		exit(1);
++	}
+ 
+ 	if (!force && new_size < min_size) {
+ 		com_err(program_name, 0,
+-- 
+2.35.1
+

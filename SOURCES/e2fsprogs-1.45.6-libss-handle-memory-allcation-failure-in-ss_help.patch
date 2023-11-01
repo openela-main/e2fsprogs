@@ -1,0 +1,33 @@
+From 22c751c1ab47277e90f63ac774288f67d2e42c51 Mon Sep 17 00:00:00 2001
+From: Lukas Czerner <lczerner@redhat.com>
+Date: Fri, 6 Aug 2021 11:58:18 +0200
+Subject: [PATCH 42/46] libss: handle memory allcation failure in ss_help()
+Content-Type: text/plain
+
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+---
+ lib/ss/help.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/lib/ss/help.c b/lib/ss/help.c
+index 96eb1092..a22b4017 100644
+--- a/lib/ss/help.c
++++ b/lib/ss/help.c
+@@ -96,7 +96,12 @@ void ss_help(int argc, char const * const *argv, int sci_idx, pointer info_ptr)
+     }
+     if (fd < 0) {
+ #define MSG "No info found for "
+-        char *buf = malloc(strlen (MSG) + strlen (argv[1]) + 1);
++	char *buf = malloc(strlen (MSG) + strlen (argv[1]) + 1);
++	if (!buf) {
++		ss_perror(sci_idx, 0,
++			  "couldn't allocate memory to print error message");
++		return;
++	}
+ 	strcpy(buf, MSG);
+ 	strcat(buf, argv[1]);
+ 	ss_perror(sci_idx, 0, buf);
+-- 
+2.35.1
+

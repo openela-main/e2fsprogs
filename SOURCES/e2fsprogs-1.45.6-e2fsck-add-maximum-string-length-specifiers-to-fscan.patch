@@ -1,0 +1,42 @@
+From c9d064c7a4e4ffbfaf95098c57381ee5394a1346 Mon Sep 17 00:00:00 2001
+From: Theodore Ts'o <tytso@mit.edu>
+Date: Tue, 10 Aug 2021 15:36:46 -0400
+Subject: [PATCH 45/46] e2fsck: add maximum string length specifiers to fscanf
+ format strings
+Content-Type: text/plain
+
+When parsing strings from /proc/apm and /proc/acpi/ac_adapter, add
+string length limits to prevent possible buffer overruns.
+
+Addresses-Coverty-Bug: 1297496
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ e2fsck/unix.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/e2fsck/unix.c b/e2fsck/unix.c
+index 15a73e7c..ddd384b1 100644
+--- a/e2fsck/unix.c
++++ b/e2fsck/unix.c
+@@ -302,7 +302,7 @@ static int is_on_batt(void)
+ 	}
+ 	f = fopen("/proc/apm", "r");
+ 	if (f) {
+-		if (fscanf(f, "%s %s %s %x", tmp, tmp, tmp, &acflag) != 4)
++		if (fscanf(f, "%79s %79s %79s %x", tmp, tmp, tmp, &acflag) != 4)
+ 			acflag = 1;
+ 		fclose(f);
+ 		return (acflag != 1);
+@@ -318,7 +318,7 @@ static int is_on_batt(void)
+ 			f = fopen(fname, "r");
+ 			if (!f)
+ 				continue;
+-			if (fscanf(f, "%s %s", tmp2, tmp) != 2)
++			if (fscanf(f, "%79s %79s", tmp2, tmp) != 2)
+ 				tmp[0] = 0;
+ 			fclose(f);
+ 			if (strncmp(tmp, "off-line", 8) == 0) {
+-- 
+2.35.1
+

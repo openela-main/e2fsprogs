@@ -1,0 +1,58 @@
+From 1aecdcc5c805e5e2114dd14877e9e1771fb519bf Mon Sep 17 00:00:00 2001
+From: Theodore Ts'o <tytso@mit.edu>
+Date: Thu, 16 Jan 2020 19:17:26 -0500
+Subject: [PATCH 04/46] libext2fs: don't needlessly byte swap the group
+ descriptors in ext2fs_flush
+Content-Type: text/plain
+
+If the EXT2_FLAG_SUPER_ONLY is set, there's no reason to allocate the
+shadow block group descriptors and byte swap the group descriptors.
+
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ lib/ext2fs/closefs.c | 24 ++++++++++++++----------
+ 1 file changed, 14 insertions(+), 10 deletions(-)
+
+diff --git a/lib/ext2fs/closefs.c b/lib/ext2fs/closefs.c
+index 6814cdc3..69cbdd8c 100644
+--- a/lib/ext2fs/closefs.c
++++ b/lib/ext2fs/closefs.c
+@@ -331,20 +331,24 @@ errcode_t ext2fs_flush2(ext2_filsys fs, int flags)
+ #ifdef WORDS_BIGENDIAN
+ 	retval = EXT2_ET_NO_MEMORY;
+ 	retval = ext2fs_get_mem(SUPERBLOCK_SIZE, &super_shadow);
+-	if (retval)
+-		goto errout;
+-	retval = ext2fs_get_array(fs->desc_blocks, fs->blocksize,
+-				  &group_shadow);
+ 	if (retval)
+ 		goto errout;
+ 	memcpy(super_shadow, fs->super, sizeof(struct ext2_super_block));
+-	memcpy(group_shadow, fs->group_desc, (size_t) fs->blocksize *
+-	       fs->desc_blocks);
+-
+ 	ext2fs_swap_super(super_shadow);
+-	for (j = 0; j < fs->group_desc_count; j++) {
+-		gdp = ext2fs_group_desc(fs, group_shadow, j);
+-		ext2fs_swap_group_desc2(fs, gdp);
++
++	if (((fs->flags & EXT2_FLAG_SUPER_ONLY) == 0) &&
++	    !ext2fs_has_feature_journal_dev(fs->super)) {
++		retval = ext2fs_get_array(fs->desc_blocks, fs->blocksize,
++					  &group_shadow);
++		if (retval)
++			goto errout;
++		memcpy(group_shadow, fs->group_desc, (size_t) fs->blocksize *
++		       fs->desc_blocks);
++
++		for (j = 0; j < fs->group_desc_count; j++) {
++			gdp = ext2fs_group_desc(fs, group_shadow, j);
++			ext2fs_swap_group_desc2(fs, gdp);
++		}
+ 	}
+ #else
+ 	super_shadow = fs->super;
+-- 
+2.35.1
+

@@ -1,0 +1,41 @@
+From a7a6126b94b9b6b0f88b5a5cc90d069974c89901 Mon Sep 17 00:00:00 2001
+From: Theodore Ts'o <tytso@mit.edu>
+Date: Sat, 6 Mar 2021 23:08:12 -0500
+Subject: [PATCH 24/46] resize2fs: avoid allocating over the MMP block
+Content-Type: text/plain
+
+When resizing past the point where the reserve inode has reserved
+space for the block group descriptors to expand, and resize2fs (in an
+offline resize) needs to move the allocation bitmaps and/or inode
+table around, it's possible for resize2fs to allocate over the MMP
+block, which would be bad.
+
+Prevent this from happening by reserving the MMP block as a file
+system metadata block (which it is) in resize2fs's accounting.
+
+Addresses-Debian-Bug: #984472
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ resize/resize2fs.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/resize/resize2fs.c b/resize/resize2fs.c
+index 26050fec..e8401e79 100644
+--- a/resize/resize2fs.c
++++ b/resize/resize2fs.c
+@@ -1176,6 +1176,11 @@ static errcode_t mark_table_blocks(ext2_filsys fs,
+ 		if (blk)
+ 			ext2fs_mark_block_bitmap2(bmap, blk);
+ 	}
++	/* Reserve the MMP block */
++	if (ext2fs_has_feature_mmp(fs->super) &&
++	    fs->super->s_mmp_block > fs->super->s_first_data_block &&
++	    fs->super->s_mmp_block < ext2fs_blocks_count(fs->super))
++		ext2fs_mark_block_bitmap2(bmap, fs->super->s_mmp_block);
+ 	return 0;
+ }
+ 
+-- 
+2.35.1
+
