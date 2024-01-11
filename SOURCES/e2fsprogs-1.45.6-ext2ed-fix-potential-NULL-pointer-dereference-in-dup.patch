@@ -1,0 +1,34 @@
+From c0a66f76f9c5b2ed0c2f20d1b59b4715f10a60f7 Mon Sep 17 00:00:00 2001
+From: Zhiqiang Liu <liuzhiqiang26@huawei.com>
+Date: Wed, 30 Jun 2021 16:27:24 +0800
+Subject: [PATCH 33/46] ext2ed: fix potential NULL pointer dereference in
+ dupstr()
+Content-Type: text/plain
+
+In dupstr(), we should check return value of malloc().
+
+Signed-off-by: Zhiqiang Liu <liuzhiqiang26@huawei.com>
+Signed-off-by: Wu Guanghao <wuguanghao3@huawei.com>
+Reviewed-by: Wu Bo <wubo40@huawei.com>
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ ext2ed/main.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/ext2ed/main.c b/ext2ed/main.c
+index f7e7d7df..9d33a8e1 100644
+--- a/ext2ed/main.c
++++ b/ext2ed/main.c
+@@ -524,6 +524,8 @@ char *dupstr (char *src)
+ 	char *ptr;
+ 
+ 	ptr=(char *) malloc (strlen (src)+1);
++	if (!ptr)
++		return NULL;
+ 	strcpy (ptr,src);
+ 	return (ptr);
+ }
+-- 
+2.35.1
+

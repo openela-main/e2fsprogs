@@ -1,0 +1,36 @@
+From 18850fa92c398f4a60827dd5da020f9af0822424 Mon Sep 17 00:00:00 2001
+From: Zhiqiang Liu <liuzhiqiang26@huawei.com>
+Date: Wed, 28 Jul 2021 09:56:48 +0800
+Subject: [PATCH 37/46] lsattr: check whether path is NULL in lsattr_dir_proc()
+Content-Type: text/plain
+
+In lsattr_dir_proc(), if malloc() return NULL, it will cause
+a segmentation fault problem.
+
+Signed-off-by: Zhiqiang Liu <liuzhiqiang26@huawei.com>
+Signed-off-by: Wu Guanghao <wuguanghao3@huawei.com>
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ misc/lsattr.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/misc/lsattr.c b/misc/lsattr.c
+index 0d954376..55080e92 100644
+--- a/misc/lsattr.c
++++ b/misc/lsattr.c
+@@ -144,6 +144,11 @@ static int lsattr_dir_proc (const char * dir_name, struct dirent * de,
+ 	int dir_len = strlen(dir_name);
+ 
+ 	path = malloc(dir_len + strlen (de->d_name) + 2);
++	if (!path) {
++		fputs(_("Couldn't allocate path variable in lsattr_dir_proc\n"),
++			stderr);
++		return -1;
++	}
+ 
+ 	if (dir_len && dir_name[dir_len-1] == '/')
+ 		sprintf (path, "%s%s", dir_name, de->d_name);
+-- 
+2.35.1
+

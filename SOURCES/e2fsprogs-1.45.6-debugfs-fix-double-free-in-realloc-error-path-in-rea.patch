@@ -1,0 +1,35 @@
+From 4126c63885388e568ade780e9fed6ede37faf978 Mon Sep 17 00:00:00 2001
+From: Theodore Ts'o <tytso@mit.edu>
+Date: Thu, 21 Jan 2021 16:01:14 -0500
+Subject: [PATCH 16/46] debugfs: fix double free in realloc() error path in
+ read_list()
+Content-Type: text/plain
+
+Fixes-Coverity-Bug: 1464575
+Fixes-Coverity-Bug: 1464571
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ debugfs/util.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/debugfs/util.c b/debugfs/util.c
+index 759bb392..091f6f65 100644
+--- a/debugfs/util.c
++++ b/debugfs/util.c
+@@ -545,10 +545,8 @@ errcode_t read_list(char *str, blk64_t **list, size_t *len)
+ 			goto err;
+ 		}
+ 		l = realloc(lst, sizeof(blk64_t) * (ln + y - x + 1));
+-		if (l == NULL) {
+-			retval = ENOMEM;
+-			goto err;
+-		}
++		if (l == NULL)
++			return ENOMEM;
+ 		lst = l;
+ 		for (; x <= y; x++)
+ 			lst[ln++] = x;
+-- 
+2.35.1
+

@@ -1,0 +1,33 @@
+From 693c06539f0c168c6edf32d25b4c64835a1e3f31 Mon Sep 17 00:00:00 2001
+From: Zhiqiang Liu <liuzhiqiang26@huawei.com>
+Date: Wed, 30 Jun 2021 16:27:21 +0800
+Subject: [PATCH 32/46] lib/ss/error.c: check return value malloc in ss_name()
+Content-Type: text/plain
+
+In ss_name(), we should check return value of malloc(),
+otherwise, it may cause a segmentation fault problem.
+
+Signed-off-by: Zhiqiang Liu <liuzhiqiang26@huawei.com>
+Signed-off-by: Wu Guanghao <wuguanghao3@huawei.com>
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ lib/ss/error.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/lib/ss/error.c b/lib/ss/error.c
+index 8d345a9f..656b71be 100644
+--- a/lib/ss/error.c
++++ b/lib/ss/error.c
+@@ -42,6 +42,8 @@ char *ss_name(int sci_idx)
+ 			 (strlen(infop->subsystem_name)+
+ 			  strlen(infop->current_request)+
+ 			  4));
++	if (ret_val == (char *)NULL)
++		return ((char *)NULL);
+ 	cp = ret_val;
+ 	cp1 = infop->subsystem_name;
+ 	while (*cp1)
+-- 
+2.35.1
+

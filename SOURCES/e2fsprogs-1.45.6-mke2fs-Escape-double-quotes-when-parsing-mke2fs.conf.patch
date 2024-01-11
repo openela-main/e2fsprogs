@@ -1,0 +1,52 @@
+From 6fa8edd0fde7a540b41d78e45743208c8edab0b1 Mon Sep 17 00:00:00 2001
+From: Lukas Czerner <lczerner@redhat.com>
+Date: Mon, 2 Nov 2020 15:26:31 +0100
+Subject: [PATCH] mke2fs: Escape double quotes when parsing mke2fs.conf
+
+Currently, when constructing the <default> configuration pseudo-file using
+the profile-to-c.awk script we will just pass the double quotes as they
+appear in the mke2fs.conf.
+
+This is problematic, because the resulting default_profile.c will either
+fail to compile because of syntax error, or leave the resulting
+configuration invalid.
+
+It can be reproduced by adding the following line somewhere into
+mke2fs.conf configuration and forcing mke2fs to use the <default>
+configuration by specifying nonexistent mke2fs.conf
+
+MKE2FS_CONFIG="nonexistent" ./misc/mke2fs -T ext4 /dev/device
+
+default_mntopts = "acl,user_xattr"
+^ this will fail to compile
+
+default_mntopts = ""
+^ this will result in invalid config file
+
+Syntax error in mke2fs config file (<default>, line #4)
+       Unknown code prof 17
+
+Fix it by escaping the double quotes with a backslash in
+profile-to-c.awk script.
+
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+---
+ misc/profile-to-c.awk | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/misc/profile-to-c.awk b/misc/profile-to-c.awk
+index f964efd6..814f7236 100644
+--- a/misc/profile-to-c.awk
++++ b/misc/profile-to-c.awk
+@@ -4,6 +4,7 @@ BEGIN {
+ }
+ 
+ {
++  gsub("\"","\\\"",$0);
+   printf("  \"%s\\n\"\n", $0);
+ }
+ 
+-- 
+2.26.3
+

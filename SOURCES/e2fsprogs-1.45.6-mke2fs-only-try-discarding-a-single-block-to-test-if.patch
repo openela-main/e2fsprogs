@@ -1,0 +1,57 @@
+From 2831f4202dd1bec289a9a3459d553fcffda0f280 Mon Sep 17 00:00:00 2001
+From: Theodore Ts'o <tytso@mit.edu>
+Date: Sun, 18 Jul 2021 09:15:28 -0400
+Subject: [PATCH 34/46] mke2fs: only try discarding a single block to test if
+ discard works
+Content-Type: text/plain
+
+Commit d2bfdc7ff15c ("Use punch hole as "discard" on regular files")
+added a test to see if the storage device actually supports discard.
+The intent was to try discarding the first block but since
+io_channel_discard() interprets the offset and count arguments in
+blocks, and not bytes, mke2fs was actually discarding the first 16
+megabytes (when the block size is 4k).  This is normally not a
+problem, since most file systems are larger than that, and requests to
+discard beyond the end of the block device are ignored.
+
+However, when creating a small file system as part of a image
+containing multiple partitions, the initial test discard can end up
+discarding data beyond the file system being created.
+
+Addresses-Debian-Bug: #989630
+Reported-by: Josh Triplett <josh@joshtriplett.org>
+Fixes: d2bfdc7ff15c ("Use punch hole as "discard" on regular files")
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ misc/mke2fs.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/misc/mke2fs.c b/misc/mke2fs.c
+index 389d0981..b2bb2847 100644
+--- a/misc/mke2fs.c
++++ b/misc/mke2fs.c
+@@ -2768,7 +2768,7 @@ static int mke2fs_discard_device(ext2_filsys fs)
+ 	struct ext2fs_numeric_progress_struct progress;
+ 	blk64_t blocks = ext2fs_blocks_count(fs->super);
+ 	blk64_t count = DISCARD_STEP_MB;
+-	blk64_t cur;
++	blk64_t cur = 0;
+ 	int retval = 0;
+ 
+ 	/*
+@@ -2776,10 +2776,9 @@ static int mke2fs_discard_device(ext2_filsys fs)
+ 	 * we do not print numeric progress resulting in failure
+ 	 * afterwards.
+ 	 */
+-	retval = io_channel_discard(fs->io, 0, fs->blocksize);
++	retval = io_channel_discard(fs->io, 0, 1);
+ 	if (retval)
+ 		return retval;
+-	cur = fs->blocksize;
+ 
+ 	count *= (1024 * 1024);
+ 	count /= fs->blocksize;
+-- 
+2.35.1
+

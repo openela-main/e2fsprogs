@@ -1,0 +1,36 @@
+From 422643f4758b0a0345d84b2d19312269472e2a00 Mon Sep 17 00:00:00 2001
+From: Lukas Czerner <lczerner@redhat.com>
+Date: Thu, 17 Feb 2022 10:24:59 +0100
+Subject: [PATCH 2/2] libss: fix possible NULL pointer dereferece on allocation
+ failure
+Content-Type: text/plain
+
+Currently in ss_execute_command() we're missng a check to see if the
+memory allocation was succesful. Fix it by checking the return from
+malloc and returning ENOMEM if it had failed.
+
+[ Removed addition of the SS_ET_ENOMEM entry to the the libss error
+  table.  -TYT ]
+
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+---
+ lib/ss/execute_cmd.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/lib/ss/execute_cmd.c b/lib/ss/execute_cmd.c
+index d443a468..2e2c8cfa 100644
+--- a/lib/ss/execute_cmd.c
++++ b/lib/ss/execute_cmd.c
+@@ -171,6 +171,8 @@ int ss_execute_command(int sci_idx, register char *argv[])
+ 	for (argp = argv; *argp; argp++)
+ 		argc++;
+ 	argp = (char **)malloc((argc+1)*sizeof(char *));
++	if (!argp)
++		return(ENOMEM);
+ 	for (i = 0; i <= argc; i++)
+ 		argp[i] = argv[i];
+ 	i = really_execute_command(sci_idx, argc, &argp);
+-- 
+2.35.1
+

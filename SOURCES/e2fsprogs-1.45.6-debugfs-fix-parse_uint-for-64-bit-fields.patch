@@ -1,0 +1,54 @@
+From c78e3e170a63bb1804b47d4f5a6652aad0e4d3b2 Mon Sep 17 00:00:00 2001
+From: Theodore Ts'o <tytso@mit.edu>
+Date: Tue, 6 Oct 2020 08:29:09 -0400
+Subject: [PATCH 12/46] debugfs: fix parse_uint for 64-bit fields
+Content-Type: text/plain
+
+The logic for handling 64-bit structure elements was reversed, which
+caused attempts to set fields like kbytes_written to fail:
+
+    % debugfs -w /tmp/foo.img
+    debugfs 1.45.6 (20-Mar-2020)
+    debugfs:  set_super_value kbytes_written 1024
+    64-bit field kbytes_written has a second 64-bit field
+    defined; BUG?!?
+
+https://github.com/tytso/e2fsprogs/issues/36
+
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ debugfs/set_fields.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/debugfs/set_fields.c b/debugfs/set_fields.c
+index 5142554d..281f2c5d 100644
+--- a/debugfs/set_fields.c
++++ b/debugfs/set_fields.c
+@@ -487,10 +487,7 @@ static errcode_t parse_uint(struct field_set_info *info, char *field,
+ 	n = num & mask;
+ 	switch (size) {
+ 	case 8:
+-		/* Should never get here */
+-		fprintf(stderr, "64-bit field %s has a second 64-bit field\n"
+-			"defined; BUG?!?\n", info->name);
+-		*u.ptr64 = 0;
++		*u.ptr64 = n;
+ 		break;
+ 	case 4:
+ 		*u.ptr32 = n;
+@@ -510,7 +507,10 @@ static errcode_t parse_uint(struct field_set_info *info, char *field,
+ 		size = 2;
+ 	switch (size) {
+ 	case 8:
+-		*u.ptr64 = n;
++		/* Should never get here */
++		fprintf(stderr, "64-bit field %s has a second 64-bit field\n"
++			"defined; BUG?!?\n", info->name);
++		*u.ptr64 = 0;
+ 		break;
+ 	case 4:
+ 		*u.ptr32 = n;
+-- 
+2.35.1
+

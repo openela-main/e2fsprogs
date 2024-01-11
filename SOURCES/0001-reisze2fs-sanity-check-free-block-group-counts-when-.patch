@@ -1,0 +1,126 @@
+From 2c98da4e6a3e106c340972adedc6f79c4c1969f2 Mon Sep 17 00:00:00 2001
+From: Theodore Ts'o <tytso@mit.edu>
+Date: Tue, 28 Dec 2021 12:33:15 -0500
+Subject: [PATCH] reisze2fs: sanity check free block group counts when
+ calculating minimum size
+
+If one or more block group descriptor's free blocks count is insane,
+it's possible this can lead to a infinite loop in the function
+calculate_minimum_resize_size(), which is called by resize2fs -P or
+resize2fs -M.
+
+Add some sanity checks to avoid this.  In the case where the file
+system is corrupt, this will result in resize2fs -P reporting an
+incorrect value, but that's OK, since when we try to do an actual
+resize operation, resize2fs requires that the file system be freshly
+checked using e2fsck.
+
+https://github.com/tytso/e2fsprogs/issues/94
+
+Fixes: ac94445fc01f ("resize2fs: make minimum size estimates more reliable for mounted fs")
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+---
+ resize/resize2fs.c        | 13 +++++++++--
+ tests/r_corrupt_fs/expect |  4 ++++
+ tests/r_corrupt_fs/name   |  1 +
+ tests/r_corrupt_fs/script | 45 +++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 61 insertions(+), 2 deletions(-)
+ create mode 100644 tests/r_corrupt_fs/expect
+ create mode 100644 tests/r_corrupt_fs/name
+ create mode 100644 tests/r_corrupt_fs/script
+
+diff --git a/resize/resize2fs.c b/resize/resize2fs.c
+index 8a3d08db..26050fec 100644
+--- a/resize/resize2fs.c
++++ b/resize/resize2fs.c
+@@ -2928,8 +2928,17 @@ blk64_t calculate_minimum_resize_size(ext2_filsys fs, int flags)
+ 	/* calculate how many blocks are needed for data */
+ 	data_needed = ext2fs_blocks_count(fs->super);
+ 	for (grp = 0; grp < fs->group_desc_count; grp++) {
+-		data_needed -= calc_group_overhead(fs, grp, old_desc_blocks);
+-		data_needed -= ext2fs_bg_free_blocks_count(fs, grp);
++		__u32 n = ext2fs_bg_free_blocks_count(fs, grp);
++
++		if (n > EXT2_BLOCKS_PER_GROUP(fs->super))
++			n = EXT2_BLOCKS_PER_GROUP(fs->super);
++		n += calc_group_overhead(fs, grp, old_desc_blocks);
++		if (data_needed < n) {
++			if (flags & RESIZE_DEBUG_MIN_CALC)
++				printf("file system appears inconsistent?!?\n");
++			return ext2fs_blocks_count(fs->super);
++		}
++		data_needed -= n;
+ 	}
+ #ifdef RESIZE2FS_DEBUG
+ 	if (flags & RESIZE_DEBUG_MIN_CALC)
+diff --git a/tests/r_corrupt_fs/expect b/tests/r_corrupt_fs/expect
+new file mode 100644
+index 00000000..fe0f2bc4
+--- /dev/null
++++ b/tests/r_corrupt_fs/expect
+@@ -0,0 +1,4 @@
++mke2fs -q -F -t ext4 -o Linux -b 1024 test.img 32M
++debugfs -w -R "set_bg 1 free_blocks_count 65536" /tmp/foo.img
++resize2fs -P /tmp/foo.img
++Estimated minimum size of the filesystem: 6604
+diff --git a/tests/r_corrupt_fs/name b/tests/r_corrupt_fs/name
+new file mode 100644
+index 00000000..ed627419
+--- /dev/null
++++ b/tests/r_corrupt_fs/name
+@@ -0,0 +1 @@
++resize2fs -P of a corrupted file system
+diff --git a/tests/r_corrupt_fs/script b/tests/r_corrupt_fs/script
+new file mode 100644
+index 00000000..08af91ed
+--- /dev/null
++++ b/tests/r_corrupt_fs/script
+@@ -0,0 +1,45 @@
++if ! test -x $RESIZE2FS_EXE -o ! -x $DEBUGFS_EXE; then
++	echo "$test_name: $test_description: skipped (no debugfs/resize2fs)"
++	return 0
++fi
++
++OUT=$test_name.log
++if [ -f $test_dir/expect.gz ]; then
++	EXP=$test_name.tmp
++	gunzip < $test_dir/expect.gz > $EXP1
++else
++	EXP=$test_dir/expect
++fi
++
++echo mke2fs -q -F -t ext4 -o Linux -b 1024 test.img 32M > $OUT.new
++$MKE2FS -q -F -t ext4 -o Linux -b 1024 $TMPFILE 32M >> $OUT.new 2>&1
++
++echo debugfs -w -R \"set_bg 1 free_blocks_count 65536\" /tmp/foo.img >> $OUT.new
++$DEBUGFS -w -R "set_bg 1 free_blocks_count 65536" $TMPFILE > /dev/null 2>&1
++
++if type timeout > /dev/null 2>&1 ; then
++   TIMEOUT="timeout -v 30s"
++else
++   TIMEOUT=
++fi
++
++echo resize2fs -P /tmp/foo.img >> $OUT.new
++$TIMEOUT $RESIZE2FS -P $TMPFILE  >> $OUT.new 2>&1
++
++sed -f $cmd_dir/filter.sed < $OUT.new > $OUT
++
++rm -f $TMPFILE $OUT.new
++
++cmp -s $OUT $EXP
++status=$?
++
++if [ "$status" = 0 ] ; then
++	echo "$test_name: $test_description: ok"
++	touch $test_name.ok
++else
++	echo "$test_name: $test_description: failed"
++	diff $DIFF_OPTS $EXP $OUT > $test_name.failed
++	rm -f $test_name.tmp
++fi
++
++unset IMAGE OUT EXP TIMEOUT
+-- 
+2.34.1
+

@@ -1,0 +1,39 @@
+From 7c9b477d25a81ef736a832d66793a75860394d6f Mon Sep 17 00:00:00 2001
+From: Jan Kara <jack@suse.cz>
+Date: Mon, 12 Jul 2021 17:43:08 +0200
+Subject: [PATCH 39/46] quota: Do not account space used by project quota file
+ to quota
+Content-Type: text/plain
+
+Project quota files have high inode numbers but are not accounted in
+quota usage. Do not track them when computing quota usage.
+
+Signed-off-by: Jan Kara <jack@suse.cz>
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ lib/support/mkquota.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/lib/support/mkquota.c b/lib/support/mkquota.c
+index 6f7ae6d6..ef50c9ab 100644
+--- a/lib/support/mkquota.c
++++ b/lib/support/mkquota.c
+@@ -500,9 +500,11 @@ errcode_t quota_compute_usage(quota_ctx_t qctx)
+ 		}
+ 		if (ino == 0)
+ 			break;
+-		if (inode->i_links_count &&
+-		    (ino == EXT2_ROOT_INO ||
+-		     ino >= EXT2_FIRST_INODE(fs->super))) {
++		if (!inode->i_links_count)
++			continue;
++		if (ino == EXT2_ROOT_INO ||
++		    (ino >= EXT2_FIRST_INODE(fs->super) &&
++		     ino != quota_type2inum(PRJQUOTA, fs->super))) {
+ 			space = ext2fs_get_stat_i_blocks(fs,
+ 						EXT2_INODE(inode)) << 9;
+ 			quota_data_add(qctx, inode, ino, space);
+-- 
+2.35.1
+

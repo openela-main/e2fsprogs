@@ -1,0 +1,36 @@
+From df34e45c71cff889927a412c6296d02866cdc5cc Mon Sep 17 00:00:00 2001
+From: Theodore Ts'o <tytso@mit.edu>
+Date: Sun, 14 Feb 2021 23:51:45 -0500
+Subject: [PATCH 20/46] libext2fs: fix crash when ext2fs_mmp_stop() is called
+ before MMP is initialized
+Content-Type: text/plain
+
+The fatal_error() function in e2fsck can call ext2fs_mmp_stop() on a
+file system where MMP hasn't yet been initialized.  When that happens,
+instead of crashing, have ext2fs_mmp_stop() return success, since mmp
+doesn't need to be stopped if it hasn't even been initialized yet.
+
+Addresses-Debian-Bug: #696609
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ lib/ext2fs/mmp.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/lib/ext2fs/mmp.c b/lib/ext2fs/mmp.c
+index 973b9ecd..eddc66a7 100644
+--- a/lib/ext2fs/mmp.c
++++ b/lib/ext2fs/mmp.c
+@@ -401,7 +401,8 @@ errcode_t ext2fs_mmp_stop(ext2_filsys fs)
+ 	errcode_t retval = 0;
+ 
+ 	if (!ext2fs_has_feature_mmp(fs->super) ||
+-	    !(fs->flags & EXT2_FLAG_RW) || (fs->flags & EXT2_FLAG_SKIP_MMP))
++	    !(fs->flags & EXT2_FLAG_RW) || (fs->flags & EXT2_FLAG_SKIP_MMP) ||
++	    (fs->mmp_buf == NULL) || (fs->mmp_cmp == NULL))
+ 		goto mmp_error;
+ 
+ 	retval = ext2fs_mmp_read(fs, fs->super->s_mmp_block, fs->mmp_buf);
+-- 
+2.35.1
+

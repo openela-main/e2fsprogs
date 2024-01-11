@@ -1,0 +1,42 @@
+From 91a846631015734d322d11e3b8ff82d650ab7a8e Mon Sep 17 00:00:00 2001
+From: Lukas Czerner <lczerner@redhat.com>
+Date: Fri, 6 Aug 2021 11:58:19 +0200
+Subject: [PATCH 43/46] libss: Add missing error handling for fdopen()
+Content-Type: text/plain
+
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+---
+ lib/ss/list_rqs.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/lib/ss/list_rqs.c b/lib/ss/list_rqs.c
+index 021a3835..89e37bb2 100644
+--- a/lib/ss/list_rqs.c
++++ b/lib/ss/list_rqs.c
+@@ -12,6 +12,9 @@
+  */
+ #include "config.h"
+ #include "ss_internal.h"
++#ifdef HAVE_UNISTD_H
++#include <unistd.h>
++#endif
+ #include <signal.h>
+ #include <setjmp.h>
+ #include <sys/wait.h>
+@@ -46,6 +49,12 @@ void ss_list_requests(int argc __SS_ATTR((unused)),
+         return;
+     }
+     output = fdopen(fd, "w");
++    if (!output) {
++        perror("fdopen");
++        close(fd);
++        (void) signal(SIGINT, func);
++        return;
++    }
+     sigprocmask(SIG_SETMASK, &omask, (sigset_t *) 0);
+ 
+     fprintf (output, "Available %s requests:\n\n",
+-- 
+2.35.1
+

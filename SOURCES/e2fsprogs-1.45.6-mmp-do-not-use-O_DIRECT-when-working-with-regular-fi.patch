@@ -1,0 +1,68 @@
+From d80424f5ceaa3a7a8ce7dbf6bacca32f2f05fdeb Mon Sep 17 00:00:00 2001
+From: Lukas Czerner <lczerner@redhat.com>
+Date: Thu, 18 Feb 2021 10:51:46 +0100
+Subject: [PATCH 23/46] mmp: do not use O_DIRECT when working with regular file
+Content-Type: text/plain
+
+Currently the mmp block is read using O_DIRECT to avoid any caching that
+may be done by the VM. However when working with regular files this
+creates alignment issues when the device of the host file system has
+sector size larger than the blocksize of the file system in the file
+we're working with.
+
+This can be reproduced with t_mmp_fail test when run on the device with
+4k sector size because the mke2fs fails when trying to read the mmp
+block.
+
+Fix it by disabling O_DIRECT when working with regular files. I don't
+think there is any risk of doing so since the file system layer, unlike
+shared block device, should guarantee cache consistency.
+
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+Reviewed-by: Eric Sandeen <sandeen@redhat.com>
+Reviewed-by: Andreas Dilger <adilger@dilger.ca>
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+---
+ lib/ext2fs/mmp.c | 22 +++++++++++-----------
+ 1 file changed, 11 insertions(+), 11 deletions(-)
+
+diff --git a/lib/ext2fs/mmp.c b/lib/ext2fs/mmp.c
+index eddc66a7..626fe395 100644
+--- a/lib/ext2fs/mmp.c
++++ b/lib/ext2fs/mmp.c
+@@ -57,21 +57,21 @@ errcode_t ext2fs_mmp_read(ext2_filsys fs, blk64_t mmp_blk, void *buf)
+ 	 * regardless of how the io_manager is doing reads, to avoid caching of
+ 	 * the MMP block by the io_manager or the VM.  It needs to be fresh. */
+ 	if (fs->mmp_fd <= 0) {
++		struct stat st;
+ 		int flags = O_RDWR | O_DIRECT;
+ 
+-retry:
++		/*
++		 * There is no reason for using O_DIRECT if we're working with
++		 * regular file. Disabling it also avoids problems with
++		 * alignment when the device of the host file system has sector
++		 * size larger than blocksize of the fs we're working with.
++		 */
++		if (stat(fs->device_name, &st) == 0 &&
++		    S_ISREG(st.st_mode))
++			flags &= ~O_DIRECT;
++
+ 		fs->mmp_fd = open(fs->device_name, flags);
+ 		if (fs->mmp_fd < 0) {
+-			struct stat st;
+-
+-			/* Avoid O_DIRECT for filesystem image files if open
+-			 * fails, since it breaks when running on tmpfs. */
+-			if (errno == EINVAL && (flags & O_DIRECT) &&
+-			    stat(fs->device_name, &st) == 0 &&
+-			    S_ISREG(st.st_mode)) {
+-				flags &= ~O_DIRECT;
+-				goto retry;
+-			}
+ 			retval = EXT2_ET_MMP_OPEN_DIRECT;
+ 			goto out;
+ 		}
+-- 
+2.35.1
+

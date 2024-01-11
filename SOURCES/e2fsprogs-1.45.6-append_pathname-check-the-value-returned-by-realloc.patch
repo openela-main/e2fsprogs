@@ -1,0 +1,48 @@
+From c74301ce5020c499445eb5c32bd70e4a1099a62d Mon Sep 17 00:00:00 2001
+From: wuguanghao <wuguanghao3@huawei.com>
+Date: Wed, 30 Jun 2021 16:27:18 +0800
+Subject: [PATCH 29/46] append_pathname: check the value returned by realloc
+Content-Type: text/plain
+
+In append_pathname(), we need to add a new path to save the value
+returned by realloc, otherwise the name->path may be NULL, causing
+a segfault.
+
+Signed-off-by: Wu Guanghao <wuguanghao3@huawei.com>
+Signed-off-by: Zhiqiang Liu <liuzhiqiang26@huawei.com>
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ contrib/fsstress.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/contrib/fsstress.c b/contrib/fsstress.c
+index 2a983482..2136a903 100644
+--- a/contrib/fsstress.c
++++ b/contrib/fsstress.c
+@@ -599,6 +599,7 @@ void add_to_flist(int ft, int id, int parent)
+ void append_pathname(pathname_t * name, char *str)
+ {
+ 	int len;
++	char *path;
+ 
+ 	len = strlen(str);
+ #ifdef DEBUG
+@@ -609,7 +610,13 @@ void append_pathname(pathname_t * name, char *str)
+ 
+ 	}
+ #endif
+-	name->path = realloc(name->path, name->len + 1 + len);
++	path = realloc(name->path, name->len + 1 + len);
++	if (path == NULL) {
++		fprintf(stderr, "fsstress: append_pathname realloc failed\n");
++		chdir(homedir);
++		abort();
++	}
++	name->path = path;
+ 	strcpy(&name->path[name->len], str);
+ 	name->len += len;
+ }
+-- 
+2.35.1
+

@@ -1,0 +1,100 @@
+From 0111635ea5798f98665714e161c3c7746184a04b Mon Sep 17 00:00:00 2001
+From: Theodore Ts'o <tytso@mit.edu>
+Date: Tue, 23 Feb 2021 16:02:42 -0500
+Subject: [PATCH 21/46] Add checks for fs->blocksize == 0 which could cause
+ some crashes
+Content-Type: text/plain
+
+This should never happeb, but some checks is useful, and also fixes
+some Coverity warnings.
+
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ debugfs/do_journal.c      | 2 --
+ lib/ext2fs/csum.c         | 3 +++
+ lib/ext2fs/ext2_err.et.in | 3 +++
+ lib/ext2fs/inode.c        | 4 ++++
+ misc/e2image.c            | 5 +++--
+ 5 files changed, 13 insertions(+), 4 deletions(-)
+
+diff --git a/debugfs/do_journal.c b/debugfs/do_journal.c
+index 5091a530..8261fa95 100644
+--- a/debugfs/do_journal.c
++++ b/debugfs/do_journal.c
+@@ -528,8 +528,6 @@ static errcode_t journal_write(journal_t *journal,
+ 	}
+ 
+ 	err = journal_close_trans(&trans);
+-	if (err)
+-		goto error;
+ error:
+ 	return err;
+ }
+diff --git a/lib/ext2fs/csum.c b/lib/ext2fs/csum.c
+index 2151003b..28b3bb05 100644
+--- a/lib/ext2fs/csum.c
++++ b/lib/ext2fs/csum.c
+@@ -263,6 +263,9 @@ static errcode_t __get_dirent_tail(ext2_filsys fs,
+ 	errcode_t retval = 0;
+ 	__u16 (*translate)(__u16) = (need_swab ? disk_to_host16 : do_nothing16);
+ 
++	if (fs->blocksize < 1024)
++		return EXT2_FILSYS_CORRUPTED; /* Should never happen */
++
+ 	d = dirent;
+ 	top = EXT2_DIRENT_TAIL(dirent, fs->blocksize);
+ 
+diff --git a/lib/ext2fs/ext2_err.et.in b/lib/ext2fs/ext2_err.et.in
+index 0c76fee6..cf0e00ea 100644
+--- a/lib/ext2fs/ext2_err.et.in
++++ b/lib/ext2fs/ext2_err.et.in
+@@ -548,4 +548,7 @@ ec	EXT2_ET_EA_INODE_CORRUPTED,
+ ec	EXT2_ET_NO_GDESC,
+ 	"Group descriptors not loaded"
+ 
++ec	EXT2_FILSYS_CORRUPTED,
++	"The internal ext2_filsys data structure appears to be corrupted"
++
+ 	end
+diff --git a/lib/ext2fs/inode.c b/lib/ext2fs/inode.c
+index c4377eeb..6f42882e 100644
+--- a/lib/ext2fs/inode.c
++++ b/lib/ext2fs/inode.c
+@@ -144,6 +144,8 @@ errcode_t ext2fs_open_inode_scan(ext2_filsys fs, int buffer_blocks,
+ 	errcode_t (*save_get_blocks)(ext2_filsys f, ext2_ino_t ino, blk_t *blocks);
+ 
+ 	EXT2_CHECK_MAGIC(fs, EXT2_ET_MAGIC_EXT2FS_FILSYS);
++	if (fs->blocksize < 1024)
++		return EXT2_FILSYS_CORRUPTED; /* Should never happen */
+ 
+ 	/*
+ 	 * If fs->badblocks isn't set, then set it --- since the inode
+@@ -764,6 +766,8 @@ errcode_t ext2fs_read_inode2(ext2_filsys fs, ext2_ino_t ino,
+ 	int		cache_slot, fail_csum;
+ 
+ 	EXT2_CHECK_MAGIC(fs, EXT2_ET_MAGIC_EXT2FS_FILSYS);
++	if (fs->blocksize < 1024)
++		return EXT2_FILSYS_CORRUPTED; /* Should never happen */
+ 
+ 	/* Check to see if user has an override function */
+ 	if (fs->read_inode &&
+diff --git a/misc/e2image.c b/misc/e2image.c
+index 892c5371..195fabb2 100644
+--- a/misc/e2image.c
++++ b/misc/e2image.c
+@@ -892,8 +892,9 @@ static errcode_t initialize_qcow2_image(int fd, ext2_filsys fs,
+ 	int cluster_bits = get_bits_from_size(fs->blocksize);
+ 	struct ext2_super_block *sb = fs->super;
+ 
+-	if (fs->blocksize < 1024)
+-		return EINVAL;	/* Can never happen, but just in case... */
++	/* Sbould never happen, but just in case... */
++	if (cluster_bits < 0)
++		return EXT2_FILSYS_CORRUPTED;
+ 
+ 	/* Allocate header */
+ 	ret = ext2fs_get_memzero(sizeof(struct ext2_qcow2_hdr), &header);
+-- 
+2.35.1
+

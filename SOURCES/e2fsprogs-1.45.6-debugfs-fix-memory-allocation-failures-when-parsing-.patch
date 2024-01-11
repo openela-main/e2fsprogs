@@ -1,0 +1,92 @@
+From b31f493cadc92023056a096d0281957c49fca22c Mon Sep 17 00:00:00 2001
+From: Theodore Ts'o <tytso@mit.edu>
+Date: Fri, 12 Feb 2021 21:43:00 -0500
+Subject: [PATCH 19/46] debugfs: fix memory allocation failures when parsing
+ journal_write arguments
+Content-Type: text/plain
+
+Fix double-free issues when parsing an invalid journal_write command,
+such as: "journal_write -b 12 -b BAD -b 42".
+
+Addresses-Coverity-Bug: 1464571
+Addresses-Coverity-Bug: 1464575
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ debugfs/do_journal.c |  8 ++++++--
+ debugfs/util.c       | 15 +++++++--------
+ 2 files changed, 13 insertions(+), 10 deletions(-)
+
+diff --git a/debugfs/do_journal.c b/debugfs/do_journal.c
+index 15ef6829..5091a530 100644
+--- a/debugfs/do_journal.c
++++ b/debugfs/do_journal.c
+@@ -554,15 +554,19 @@ void do_journal_write(int argc, char *argv[], int sci_idx EXT2FS_ATTR((unused)),
+ 		switch (opt) {
+ 		case 'b':
+ 			err = read_list(optarg, &blist, &bn);
+-			if (err)
++			if (err) {
+ 				com_err(argv[0], err,
+ 					"while reading block list");
++				goto out;
++			}
+ 			break;
+ 		case 'r':
+ 			err = read_list(optarg, &rlist, &rn);
+-			if (err)
++			if (err) {
+ 				com_err(argv[0], err,
+ 					"while reading revoke list");
++				goto out;
++			}
+ 			break;
+ 		case 'c':
+ 			flags |= JOURNAL_WRITE_NO_COMMIT;
+diff --git a/debugfs/util.c b/debugfs/util.c
+index 091f6f65..bbb20ff6 100644
+--- a/debugfs/util.c
++++ b/debugfs/util.c
+@@ -521,7 +521,7 @@ errcode_t read_list(char *str, blk64_t **list, size_t *len)
+ 	blk64_t *lst = *list;
+ 	size_t ln = *len;
+ 	char *tok, *p = str;
+-	errcode_t retval;
++	errcode_t retval = 0;
+ 
+ 	while ((tok = strtok(p, ","))) {
+ 		blk64_t *l;
+@@ -538,15 +538,17 @@ errcode_t read_list(char *str, blk64_t **list, size_t *len)
+ 				return errno;
+ 		} else if (*e != 0) {
+ 			retval = EINVAL;
+-			goto err;
++			break;
+ 		}
+ 		if (y < x) {
+ 			retval = EINVAL;
+-			goto err;
++			break;
+ 		}
+ 		l = realloc(lst, sizeof(blk64_t) * (ln + y - x + 1));
+-		if (l == NULL)
+-			return ENOMEM;
++		if (l == NULL) {
++			retval = ENOMEM;
++			break;
++		}
+ 		lst = l;
+ 		for (; x <= y; x++)
+ 			lst[ln++] = x;
+@@ -555,8 +557,5 @@ errcode_t read_list(char *str, blk64_t **list, size_t *len)
+ 
+ 	*list = lst;
+ 	*len = ln;
+-	return 0;
+-err:
+-	free(lst);
+ 	return retval;
+ }
+-- 
+2.35.1
+

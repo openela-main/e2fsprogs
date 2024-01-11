@@ -1,0 +1,69 @@
+From 20a8dbefbc0510430aa7744692221b843b657f62 Mon Sep 17 00:00:00 2001
+From: Theodore Ts'o <tytso@mit.edu>
+Date: Tue, 14 Jan 2020 10:58:10 -0500
+Subject: [PATCH 02/46] libext2fs: fix crash in ext2fs_image_super_write() on
+ Big Endian systems
+Content-Type: text/plain
+
+This is a similar fix as c9a8c53b17cc ("libext2fs: fix crash in
+ext2fs_open2() on Big Endian systems").
+
+Commit e6069a05: ("Teach ext2fs_open2() to honor the
+EXT2_FLAG_SUPER_ONLY flag") changed how the function
+ext2fs_group_desc() handled a request for a gdp pointer for a group
+larger than the number of groups in the file system; it now returns
+NULL, instead of returning a pointer beyond the end of the array.
+
+Previously, the ext2fs_imager_super_write() function would swap all of
+the block group descriptors in a block, even if they are beyond the
+end of the file system.  This was OK, since we were not overrunning
+the allocated memory, since it was rounded to a block boundary.  But
+now that ext2fs_group_desc() would return NULL for those gdp, it would
+cause ext2fs_open2(), when it was byte swapping the block group
+descriptors on Big Endian systems, to dereference a null pointer and
+crash.
+
+This commit adds a NULL pointer check to avoid byte swapping those
+block group descriptors in a bg descriptor block, but which are beyond
+the end of the file system, to address this crash.
+
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Reported-by: Anatoly Pugachev <matorola@gmail.com>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ lib/ext2fs/imager.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/lib/ext2fs/imager.c b/lib/ext2fs/imager.c
+index b3ede9a8..f8d67d86 100644
+--- a/lib/ext2fs/imager.c
++++ b/lib/ext2fs/imager.c
+@@ -249,10 +249,10 @@ errcode_t ext2fs_image_super_write(ext2_filsys fs, int fd,
+ 	 * if needed
+ 	 */
+ 	groups_per_block = EXT2_DESC_PER_BLOCK(fs->super);
+-	gdp = (struct ext2_group_desc *) cp;
+ 	for (j=0; j < groups_per_block*fs->desc_blocks; j++) {
+ 		gdp = ext2fs_group_desc(fs, fs->group_desc, j);
+-		ext2fs_swap_group_desc2(fs, gdp);
++		if (gdp)
++			ext2fs_swap_group_desc2(fs, gdp);
+ 	}
+ #endif
+ 
+@@ -261,10 +261,10 @@ errcode_t ext2fs_image_super_write(ext2_filsys fs, int fd,
+ 
+ #ifdef WORDS_BIGENDIAN
+ 	groups_per_block = EXT2_DESC_PER_BLOCK(fs->super);
+-	gdp = (struct ext2_group_desc *) cp;
+ 	for (j=0; j < groups_per_block*fs->desc_blocks; j++) {
+ 		gdp = ext2fs_group_desc(fs, fs->group_desc, j);
+-		ext2fs_swap_group_desc2(fs, gdp);
++		if (gdp)
++			ext2fs_swap_group_desc2(fs, gdp);
+ 	}
+ #endif
+ 
+-- 
+2.35.1
+

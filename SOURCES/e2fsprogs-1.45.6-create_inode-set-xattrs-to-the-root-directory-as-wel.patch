@@ -1,0 +1,47 @@
+From ade5263a516e4081abc14f63a73a5e0a96bb3f71 Mon Sep 17 00:00:00 2001
+From: Antoine Tenart <antoine.tenart@bootlin.com>
+Date: Fri, 17 Jul 2020 12:08:46 +0200
+Subject: [PATCH 13/46] create_inode: set xattrs to the root directory as well
+Content-Type: text/plain
+
+populate_fs do copy the xattrs for all files and directories, but the
+root directory is skipped and as a result its extended attributes aren't
+set. This is an issue when using mkfs to build a full system image that
+can be used with SElinux in enforcing mode without making any runtime
+fix at first boot.
+
+This patch adds logic to set the root directory's extended attributes.
+
+Signed-off-by: Antoine Tenart <antoine.tenart@bootlin.com>
+Reviewed-by: Andreas Dilger <adilger@dilger.ca>
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ misc/create_inode.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/misc/create_inode.c b/misc/create_inode.c
+index 837f3875..6f8487b9 100644
+--- a/misc/create_inode.c
++++ b/misc/create_inode.c
+@@ -1050,9 +1050,17 @@ errcode_t populate_fs2(ext2_filsys fs, ext2_ino_t parent_ino,
+ 	file_info.path_max_len = 255;
+ 	file_info.path = calloc(file_info.path_max_len, 1);
+ 
++	retval = set_inode_xattr(fs, root, source_dir);
++	if (retval) {
++		com_err(__func__, retval,
++			_("while copying xattrs on root directory"));
++		goto out;
++	}
++
+ 	retval = __populate_fs(fs, parent_ino, source_dir, root, &hdlinks,
+ 			       &file_info, fs_callbacks);
+ 
++out:
+ 	free(file_info.path);
+ 	free(hdlinks.hdl);
+ 	return retval;
+-- 
+2.35.1
+

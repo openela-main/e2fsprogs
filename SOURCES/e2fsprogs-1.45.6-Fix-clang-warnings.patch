@@ -1,0 +1,104 @@
+From 1466a142efe5b20ddda2ce96c0d409dc294fd1b2 Mon Sep 17 00:00:00 2001
+From: Theodore Ts'o <tytso@mit.edu>
+Date: Sat, 23 Jan 2021 00:57:18 -0500
+Subject: [PATCH 17/46] Fix clang warnings
+Content-Type: text/plain
+
+Clang gets unhappy when passing an unsigned char to string functions.
+For better or for worse we use __u8[] in the definition of the
+superblock.  So cast them these to "char *" to prevent clang
+build-time warnings.
+
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Lukas Czerner <lczerner@redhat.com>
+---
+ e2fsck/unix.c    | 2 +-
+ lib/ext2fs/mmp.c | 8 ++++----
+ misc/e2fuzz.c    | 3 ++-
+ misc/mke2fs.c    | 4 ++--
+ 4 files changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/e2fsck/unix.c b/e2fsck/unix.c
+index e71d7833..15a73e7c 100644
+--- a/e2fsck/unix.c
++++ b/e2fsck/unix.c
+@@ -1693,7 +1693,7 @@ failure:
+ 	 * or informational messages to the user.
+ 	 */
+ 	if (ctx->device_name == 0 && sb->s_volume_name[0])
+-		ctx->device_name = string_copy(ctx, sb->s_volume_name,
++		ctx->device_name = string_copy(ctx, (char *) sb->s_volume_name,
+ 					       sizeof(sb->s_volume_name));
+ 
+ 	if (ctx->device_name == 0)
+diff --git a/lib/ext2fs/mmp.c b/lib/ext2fs/mmp.c
+index e96a2273..973b9ecd 100644
+--- a/lib/ext2fs/mmp.c
++++ b/lib/ext2fs/mmp.c
+@@ -210,11 +210,11 @@ static errcode_t ext2fs_mmp_reset(ext2_filsys fs)
+ 	mmp_s->mmp_seq = EXT4_MMP_SEQ_CLEAN;
+ 	mmp_s->mmp_time = 0;
+ #ifdef HAVE_GETHOSTNAME
+-	gethostname(mmp_s->mmp_nodename, sizeof(mmp_s->mmp_nodename));
++	gethostname((char *) mmp_s->mmp_nodename, sizeof(mmp_s->mmp_nodename));
+ #else
+ 	mmp_s->mmp_nodename[0] = '\0';
+ #endif
+-	strncpy(mmp_s->mmp_bdevname, fs->device_name,
++	strncpy((char *) mmp_s->mmp_bdevname, fs->device_name,
+ 		sizeof(mmp_s->mmp_bdevname));
+ 
+ 	mmp_s->mmp_check_interval = fs->super->s_mmp_update_interval;
+@@ -352,11 +352,11 @@ clean_seq:
+ 
+ 	mmp_s->mmp_seq = seq = ext2fs_mmp_new_seq();
+ #ifdef HAVE_GETHOSTNAME
+-	gethostname(mmp_s->mmp_nodename, sizeof(mmp_s->mmp_nodename));
++	gethostname((char *) mmp_s->mmp_nodename, sizeof(mmp_s->mmp_nodename));
+ #else
+ 	strcpy(mmp_s->mmp_nodename, "unknown host");
+ #endif
+-	strncpy(mmp_s->mmp_bdevname, fs->device_name,
++	strncpy((char *) mmp_s->mmp_bdevname, fs->device_name,
+ 		sizeof(mmp_s->mmp_bdevname));
+ 
+ 	retval = ext2fs_mmp_write(fs, fs->super->s_mmp_block, fs->mmp_buf);
+diff --git a/misc/e2fuzz.c b/misc/e2fuzz.c
+index 7c0f776f..65b6ae73 100644
+--- a/misc/e2fuzz.c
++++ b/misc/e2fuzz.c
+@@ -172,7 +172,8 @@ static uint64_t rand_num(uint64_t min, uint64_t max)
+ 	for (i = 0; i < sizeof(x); i++)
+ 		px[i] = random();
+ 
+-	return min + (uint64_t)((double)(max - min) * (x / (UINT64_MAX + 1.0)));
++	return min + (uint64_t)((double)(max - min) *
++				(x / ((double) UINT64_MAX + 1.0)));
+ }
+ 
+ static int process_fs(const char *fsname)
+diff --git a/misc/mke2fs.c b/misc/mke2fs.c
+index 27e7d174..0184a3a8 100644
+--- a/misc/mke2fs.c
++++ b/misc/mke2fs.c
+@@ -3151,7 +3151,7 @@ int main (int argc, char *argv[])
+ 	if (volume_label) {
+ 		memset(fs->super->s_volume_name, 0,
+ 		       sizeof(fs->super->s_volume_name));
+-		strncpy(fs->super->s_volume_name, volume_label,
++		strncpy((char *) fs->super->s_volume_name, volume_label,
+ 			sizeof(fs->super->s_volume_name));
+ 	}
+ 
+@@ -3161,7 +3161,7 @@ int main (int argc, char *argv[])
+ 	if (mount_dir) {
+ 		memset(fs->super->s_last_mounted, 0,
+ 		       sizeof(fs->super->s_last_mounted));
+-		strncpy(fs->super->s_last_mounted, mount_dir,
++		strncpy((char *) fs->super->s_last_mounted, mount_dir,
+ 			sizeof(fs->super->s_last_mounted));
+ 	}
+ 
+-- 
+2.35.1
+
