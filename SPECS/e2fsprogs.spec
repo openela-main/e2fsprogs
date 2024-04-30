@@ -1,7 +1,7 @@
 Summary: Utilities for managing ext2, ext3, and ext4 file systems
 Name: e2fsprogs
 Version: 1.46.5
-Release: 3%{?dist}
+Release: 5%{?dist}
 
 # License tags based on COPYING file distinctions for various components
 License: GPLv2
@@ -13,6 +13,9 @@ Source1: https://www.kernel.org/pub/linux/kernel/people/tytso/%{name}/v%{version
 # note that the GPG key linked off his MIT page is likely old, and is *not* the
 # same as the above key ( http://web.mit.edu/tytso/www/home.html )
 Source2: tytso-key.asc
+
+Source3: signed_hash_image.gz
+Source4: unsigned_hash_image.gz
 
 Url: http://e2fsprogs.sourceforge.net/
 Requires: e2fsprogs-libs%{?_isa} = %{version}-%{release}
@@ -41,7 +44,8 @@ BuildRequires: gnupg2 xz
 Patch0:	0001-Remove-local-PATH.patch
 Patch1:	0002-man-Add-note-about-RHEL9-supported-features-and-moun.patch
 Patch2:	0003-mke2fs.conf-Introduce-rhel6-rhel7-and-rhel8-fs_type.patch
-Patch3: e2fsprogs-libext2fs-add-sanity-check-to-extent-manipulation.patch
+Patch3:	e2fsprogs-libext2fs-add-sanity-check-to-extent-manipulation.patch
+Patch4:	e2fsprogs-1.46.6-Change-the-xattr-entry-hash-to-use-an-unsighed-char-.patch
 
 %description
 The e2fsprogs package contains a number of utilities for creating,
@@ -175,9 +179,12 @@ xzcat '%{SOURCE0}' | %{gpgverify} --keyring='%{SOURCE2}' --signature='%{SOURCE1}
 %patch1 -p1
 %patch2 -p1
 %patch3 -p1
+%patch4 -p1
 
 # Remove flawed tests
 rm -rf tests/m_rootdir_acl
+install -p -m 0644 %{SOURCE3} tests/f_ea_signed_hash/image.gz
+install -p -m 0644 %{SOURCE4} tests/f_ea_unsigned_hash/image.gz
 
 %global _udevdir %{_prefix}/lib/udev/rules.d
 
@@ -345,6 +352,14 @@ make PRINT_FAILED=yes fullcheck
 %{_udevdir}/96-e2scrub.rules
 
 %changelog
+* Wed Dec 13 2023 Carlos Maiolino <cmaiolino@redhat.com> - 1.46.5-5
+- rebuild to incorporate libss-devel package
+- Related: RHEL-19059
+
+* Wed Oct 17 2023 Carlos Maiolino <cmaiolino@redhat.com> - 1.46.5-4
+- Change the xattr entry hash to use an unsighed char by default
+- Related: RHEL-10467
+
 * Fri May 13 2022 Lukas Czerner <lczerner@redhat.com> 1.46.5-3
 - Add sanity check to extent manipulation (#2073549)
 
