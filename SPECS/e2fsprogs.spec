@@ -1,7 +1,7 @@
 Summary: Utilities for managing ext2, ext3, and ext4 file systems
 Name: e2fsprogs
 Version: 1.46.5
-Release: 6%{?dist}
+Release: 7%{?dist}
 
 # License tags based on COPYING file distinctions for various components
 License: GPLv2
@@ -46,7 +46,7 @@ Patch1:	0002-man-Add-note-about-RHEL9-supported-features-and-moun.patch
 Patch2:	0003-mke2fs.conf-Introduce-rhel6-rhel7-and-rhel8-fs_type.patch
 Patch3:	e2fsprogs-libext2fs-add-sanity-check-to-extent-manipulation.patch
 Patch4:	e2fsprogs-1.46.6-Change-the-xattr-entry-hash-to-use-an-unsighed-char-.patch
-Patch5: e2fsprogs-1.47.1-resize2fs-use-Direct-I-O-when-reading-the-superblock.patch
+Patch5:	e2fsprogs-1.47.1-resize2fs-use-Direct-I-O-when-reading-the-superblock.patch
 
 %description
 The e2fsprogs package contains a number of utilities for creating,
@@ -174,7 +174,14 @@ managed device with some free space available in respective volume group.
 
 %prep
 xzcat '%{SOURCE0}' | %{gpgverify} --keyring='%{SOURCE2}' --signature='%{SOURCE1}' --data=-
-%autosetup -p1
+%setup -q
+
+%patch0 -p1
+%patch1 -p1
+%patch2 -p1
+%patch3 -p1
+%patch4 -p1
+%patch5 -p1
 
 # Remove flawed tests
 rm -rf tests/m_rootdir_acl
@@ -347,8 +354,13 @@ make PRINT_FAILED=yes fullcheck
 %{_udevdir}/96-e2scrub.rules
 
 %changelog
-* Mon Jan 27 2025 Pavel Reichl <preichl@redhat.com>
+* Fri Jan 24 2025 Pavel Reichl <preichl@redhat.com> - 1.46.5-7
 - Fix: e2fsprogs: online resize fails
+- Related: RHEL-76095
+
+* Fri Dec 13 2024 Pavel Reichl <preichl@redhat.com> - 1.46.5-6
+- Bump release to perform build verification for gating changes
+- Related: RHEL-71250
 
 * Wed Dec 13 2023 Carlos Maiolino <cmaiolino@redhat.com> - 1.46.5-5
 - rebuild to incorporate libss-devel package
