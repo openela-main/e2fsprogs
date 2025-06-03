@@ -1,7 +1,7 @@
 Summary: Utilities for managing ext2, ext3, and ext4 file systems
 Name: e2fsprogs
 Version: 1.45.6
-Release: 5%{?dist}
+Release: 6%{?dist}
 
 # License tags based on COPYING file distinctions for various components
 License: GPLv2
@@ -86,6 +86,8 @@ Patch55: e2fsprogs-1.45.6-e2fsck-add-maximum-string-length-specifiers-to-fscan.p
 Patch56: e2fsprogs-1.45.6-tests-Add-option-to-print-diff-output-of-failed-test.patch
 Patch57: e2fsprogs-1.45.6-libext2fs-add-sanity-check-to-extent-manipulation.patch
 Patch58: e2fsprogs-1.45.6-libss-fix-possible-NULL-pointer-dereferece-on-alloca.patch
+Patch59: e2fsprogs-1.45.7-libext2fs-retry-reading-superblock-on-open-when-chec.patch
+Patch60: e2fsprogs-1.47.1-resize2fs-use-Direct-I-O-when-reading-the-superblock.patch
 
 %description
 The e2fsprogs package contains a number of utilities for creating,
@@ -263,6 +265,8 @@ It was originally inspired by the Multics SubSystem library.
 %patch56 -p1
 %patch57 -p1
 %patch58 -p1
+%patch59 -p1
+%patch60 -p1
 
 %build
 %configure CFLAGS="$RPM_OPT_FLAGS -fno-strict-aliasing" \
@@ -425,6 +429,10 @@ exit 0
 %{_libdir}/pkgconfig/ss.pc
 
 %changelog
+* Thu Jan 23 2025 Pavel Reichl <preichl@redhat.com> 1.45.6-6
+- Fix e2fsprogs: online resize fails
+- Related: RHEL-60512
+
 * Wed May 11 2022 Lukas Czerner <lczerner@redhat.com> 1.45.6-5
 - Update e2fsprogs with upstream fixes and improvements (#2083621)
 - Fix out-of-bounds read/write via crafter filesystem (#2073548)

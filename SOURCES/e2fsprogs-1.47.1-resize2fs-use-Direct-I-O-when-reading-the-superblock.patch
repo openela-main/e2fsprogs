@@ -1,0 +1,35 @@
+From 43a498e938887956f393b5e45ea6ac79cc5f4b84 Mon Sep 17 00:00:00 2001
+From: Theodore Ts'o <tytso@mit.edu>
+Date: Thu, 15 Jun 2023 00:17:01 -0400
+Subject: [PATCH] resize2fs: use Direct I/O when reading the superblock for
+ online resizes
+
+If the file system is mounted, the superblock can be changing while
+resize2fs is trying to read the superblock, resulting in checksum
+failures.  One way of avoiding this problem is read the superblock
+using Direct I/O, since the kernel makes sure that what gets written
+to disk is self-consistent.
+
+Suggested-by: Krister Johansen <kjlx@templeofstupid.com>
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Pavel Reichl <preichl@redhat.com>
+---
+ resize/main.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/resize/main.c b/resize/main.c
+index 94f5ec6d..f914c050 100644
+--- a/resize/main.c
++++ b/resize/main.c
+@@ -403,6 +403,8 @@
+ 
+ 	if (!(mount_flags & EXT2_MF_MOUNTED))
+ 		io_flags = EXT2_FLAG_RW | EXT2_FLAG_EXCLUSIVE;
++	if (mount_flags & EXT2_MF_MOUNTED)
++		io_flags |= EXT2_FLAG_DIRECT_IO;
+ 
+ 	io_flags |= EXT2_FLAG_64BITS;
+ 	if (undo_file) {
+-- 
+2.48.1
+
