@@ -1,0 +1,254 @@
+From c001596110e834a85b01a47a20811b318cb3b9e4 Mon Sep 17 00:00:00 2001
+From: Theodore Ts'o <tytso@mit.edu>
+Date: Fri, 26 Feb 2021 17:41:06 -0500
+Subject: [PATCH] libext2fs: fix unix_io's Direct I/O support
+
+The previous Direct I/O support worked on HDD's with 512 byte logical
+sector sizes, and on FreeBSD which required 4k aligned memory buffers.
+However, it was incomplete and was not correctly working on HDD's with
+4k logical sector sizes (aka Advanced Format Disks).
+
+Based on a patch from Alexey Lyashkov <alexey.lyashkov@hpe.com> but
+rewritten to work with the latest e2fsprogs and to minimize changes to
+make it easier to review.
+
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Reported-by: Artem Blagodarenko <artem.blagodarenko@gmail.com>
+Signed-off-by: Pavel Reichl <preichl@redhat.com>
+---
+ lib/ext2fs/io_manager.c |  6 ++-
+ lib/ext2fs/unix_io.c    | 87 +++++++++++++++++++++++++++++++----------
+ 2 files changed, 70 insertions(+), 23 deletions(-)
+
+Index: e2fsprogs-1.45.6/lib/ext2fs/io_manager.c
+===================================================================
+--- e2fsprogs-1.45.6.orig/lib/ext2fs/io_manager.c
++++ e2fsprogs-1.45.6/lib/ext2fs/io_manager.c
+@@ -134,9 +134,11 @@ errcode_t io_channel_alloc_buf(io_channe
+ 	else
+ 		size = -count;
+ 
+-	if (io->align)
++	if (io->align) {
++		if (io->align > size)
++			size = io->align;
+ 		return ext2fs_get_memalign(size, io->align, ptr);
+-	else
++	} else
+ 		return ext2fs_get_mem(size, ptr);
+ }
+ 
+Index: e2fsprogs-1.45.6/lib/ext2fs/unix_io.c
+===================================================================
+--- e2fsprogs-1.45.6.orig/lib/ext2fs/unix_io.c
++++ e2fsprogs-1.45.6/lib/ext2fs/unix_io.c
+@@ -165,13 +165,15 @@ static errcode_t raw_read_blk(io_channel
+ 	int		actual = 0;
+ 	unsigned char	*buf = bufv;
+ 	ssize_t		really_read = 0;
++	unsigned long long aligned_blk;
++	int		align_size, offset;
+ 
+ 	size = (count < 0) ? -count : (ext2_loff_t) count * channel->block_size;
+ 	data->io_stats.bytes_read += size;
+ 	location = ((ext2_loff_t) block * channel->block_size) + data->offset;
+ 
+ 	if (data->flags & IO_FLAG_FORCE_BOUNCE) {
+-		if (ext2fs_llseek(data->dev, location, SEEK_SET) != location) {
++		if (ext2fs_llseek(data->dev, location, SEEK_SET) < 0) {
+ 			retval = errno ? errno : EXT2_ET_LLSEEK_FAILED;
+ 			goto error_out;
+ 		}
+@@ -182,6 +184,7 @@ static errcode_t raw_read_blk(io_channel
+ 	/* Try an aligned pread */
+ 	if ((channel->align == 0) ||
+ 	    (IS_ALIGNED(buf, channel->align) &&
++	     IS_ALIGNED(location, channel->align) &&
+ 	     IS_ALIGNED(size, channel->align))) {
+ 		actual = pread64(data->dev, buf, size, location);
+ 		if (actual == size)
+@@ -193,6 +196,7 @@ static errcode_t raw_read_blk(io_channel
+ 	if ((sizeof(off_t) >= sizeof(ext2_loff_t)) &&
+ 	    ((channel->align == 0) ||
+ 	     (IS_ALIGNED(buf, channel->align) &&
++	      IS_ALIGNED(location, channel->align) &&
+ 	      IS_ALIGNED(size, channel->align)))) {
+ 		actual = pread(data->dev, buf, size, location);
+ 		if (actual == size)
+@@ -201,12 +205,13 @@ static errcode_t raw_read_blk(io_channel
+ 	}
+ #endif /* HAVE_PREAD */
+ 
+-	if (ext2fs_llseek(data->dev, location, SEEK_SET) != location) {
++	if (ext2fs_llseek(data->dev, location, SEEK_SET) < 0) {
+ 		retval = errno ? errno : EXT2_ET_LLSEEK_FAILED;
+ 		goto error_out;
+ 	}
+ 	if ((channel->align == 0) ||
+ 	    (IS_ALIGNED(buf, channel->align) &&
++	     IS_ALIGNED(location, channel->align) &&
+ 	     IS_ALIGNED(size, channel->align))) {
+ 		actual = read(data->dev, buf, size);
+ 		if (actual != size) {
+@@ -231,21 +236,37 @@ static errcode_t raw_read_blk(io_channel
+ 	 * to the O_DIRECT rules, so we need to do this the hard way...
+ 	 */
+ bounce_read:
++	if ((channel->block_size > channel->align) &&
++	    (channel->block_size % channel->align) == 0)
++		align_size = channel->block_size;
++	else
++		align_size = channel->align;
++	aligned_blk = location / align_size;
++	offset = location % align_size;
++
++	if (ext2fs_llseek(data->dev, aligned_blk * align_size, SEEK_SET) < 0) {
++		retval = errno ? errno : EXT2_ET_LLSEEK_FAILED;
++		goto error_out;
++	}
+ 	while (size > 0) {
+-		actual = read(data->dev, data->bounce, channel->block_size);
+-		if (actual != channel->block_size) {
++		actual = read(data->dev, data->bounce, align_size);
++		if (actual != align_size) {
+ 			actual = really_read;
+ 			buf -= really_read;
+ 			size += really_read;
+ 			goto short_read;
+ 		}
+-		actual = size;
+-		if (size > channel->block_size)
+-			actual = channel->block_size;
+-		memcpy(buf, data->bounce, actual);
++		if ((actual + offset) > align_size)
++			actual = align_size - offset;
++		if (actual > size)
++			actual = size;
++		memcpy(buf, data->bounce + offset, actual);
++
+ 		really_read += actual;
+ 		size -= actual;
+ 		buf += actual;
++		offset = 0;
++		aligned_blk++;
+ 	}
+ 	return 0;
+ 
+@@ -268,6 +289,8 @@ static errcode_t raw_write_blk(io_channe
+ 	int		actual = 0;
+ 	errcode_t	retval;
+ 	const unsigned char *buf = bufv;
++	unsigned long long aligned_blk;
++	int		align_size, offset;
+ 
+ 	if (count == 1)
+ 		size = channel->block_size;
+@@ -282,7 +305,7 @@ static errcode_t raw_write_blk(io_channe
+ 	location = ((ext2_loff_t) block * channel->block_size) + data->offset;
+ 
+ 	if (data->flags & IO_FLAG_FORCE_BOUNCE) {
+-		if (ext2fs_llseek(data->dev, location, SEEK_SET) != location) {
++		if (ext2fs_llseek(data->dev, location, SEEK_SET) < 0) {
+ 			retval = errno ? errno : EXT2_ET_LLSEEK_FAILED;
+ 			goto error_out;
+ 		}
+@@ -293,6 +316,7 @@ static errcode_t raw_write_blk(io_channe
+ 	/* Try an aligned pwrite */
+ 	if ((channel->align == 0) ||
+ 	    (IS_ALIGNED(buf, channel->align) &&
++	     IS_ALIGNED(location, channel->align) &&
+ 	     IS_ALIGNED(size, channel->align))) {
+ 		actual = pwrite64(data->dev, buf, size, location);
+ 		if (actual == size)
+@@ -303,6 +327,7 @@ static errcode_t raw_write_blk(io_channe
+ 	if ((sizeof(off_t) >= sizeof(ext2_loff_t)) &&
+ 	    ((channel->align == 0) ||
+ 	     (IS_ALIGNED(buf, channel->align) &&
++	      IS_ALIGNED(location, channel->align) &&
+ 	      IS_ALIGNED(size, channel->align)))) {
+ 		actual = pwrite(data->dev, buf, size, location);
+ 		if (actual == size)
+@@ -310,13 +335,14 @@ static errcode_t raw_write_blk(io_channe
+ 	}
+ #endif /* HAVE_PWRITE */
+ 
+-	if (ext2fs_llseek(data->dev, location, SEEK_SET) != location) {
++	if (ext2fs_llseek(data->dev, location, SEEK_SET) < 0) {
+ 		retval = errno ? errno : EXT2_ET_LLSEEK_FAILED;
+ 		goto error_out;
+ 	}
+ 
+ 	if ((channel->align == 0) ||
+ 	    (IS_ALIGNED(buf, channel->align) &&
++	     IS_ALIGNED(location, channel->align) &&
+ 	     IS_ALIGNED(size, channel->align))) {
+ 		actual = write(data->dev, buf, size);
+ 		if (actual < 0) {
+@@ -340,37 +366,56 @@ static errcode_t raw_write_blk(io_channe
+ 	 * to the O_DIRECT rules, so we need to do this the hard way...
+ 	 */
+ bounce_write:
++	if ((channel->block_size > channel->align) &&
++	    (channel->block_size % channel->align) == 0)
++		align_size = channel->block_size;
++	else
++		align_size = channel->align;
++	aligned_blk = location / align_size;
++	offset = location % align_size;
++
+ 	while (size > 0) {
+-		if (size < channel->block_size) {
++		int actual_w;
++
++		if (size < align_size || offset) {
++			if (ext2fs_llseek(data->dev, aligned_blk * align_size,
++					  SEEK_SET) < 0) {
++				retval = errno ? errno : EXT2_ET_LLSEEK_FAILED;
++				goto error_out;
++			}
+ 			actual = read(data->dev, data->bounce,
+-				      channel->block_size);
+-			if (actual != channel->block_size) {
++				      align_size);
++			if (actual != align_size) {
+ 				if (actual < 0) {
+ 					retval = errno;
+ 					goto error_out;
+ 				}
+ 				memset((char *) data->bounce + actual, 0,
+-				       channel->block_size - actual);
++				       align_size - actual);
+ 			}
+ 		}
+ 		actual = size;
+-		if (size > channel->block_size)
+-			actual = channel->block_size;
+-		memcpy(data->bounce, buf, actual);
+-		if (ext2fs_llseek(data->dev, location, SEEK_SET) != location) {
++		if ((actual + offset) > align_size)
++			actual = align_size - offset;
++		if (actual > size)
++			actual = size;
++		memcpy(((char *)data->bounce) + offset, buf, actual);
++		if (ext2fs_llseek(data->dev, aligned_blk * align_size, SEEK_SET) < 0) {
+ 			retval = errno ? errno : EXT2_ET_LLSEEK_FAILED;
+ 			goto error_out;
+ 		}
+-		actual = write(data->dev, data->bounce, channel->block_size);
+-		if (actual < 0) {
++		actual_w = write(data->dev, data->bounce, align_size);
++		if (actual_w < 0) {
+ 			retval = errno;
+ 			goto error_out;
+ 		}
+-		if (actual != channel->block_size)
++		if (actual_w != align_size)
+ 			goto short_write;
+ 		size -= actual;
+ 		buf += actual;
+ 		location += actual;
++		aligned_blk++;
++		offset = 0;
+ 	}
+ 	return 0;
+ 

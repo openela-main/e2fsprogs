@@ -1,7 +1,7 @@
 Summary: Utilities for managing ext2, ext3, and ext4 file systems
 Name: e2fsprogs
 Version: 1.45.6
-Release: 6%{?dist}
+Release: 7%{?dist}
 
 # License tags based on COPYING file distinctions for various components
 License: GPLv2
@@ -88,6 +88,8 @@ Patch57: e2fsprogs-1.45.6-libext2fs-add-sanity-check-to-extent-manipulation.patc
 Patch58: e2fsprogs-1.45.6-libss-fix-possible-NULL-pointer-dereferece-on-alloca.patch
 Patch59: e2fsprogs-1.45.7-libext2fs-retry-reading-superblock-on-open-when-chec.patch
 Patch60: e2fsprogs-1.47.1-resize2fs-use-Direct-I-O-when-reading-the-superblock.patch
+Patch61: e2fsprogs-1.46.1-libext2fs-fix-un-ix_io-s-Direct-I-O-support.patch
+Patch62: e2fsprogs-1.46.2-libext2s-fix-unix_io-with-IO_FLAG_FORCE_BOUNCE-flag-.patch
 
 %description
 The e2fsprogs package contains a number of utilities for creating,
@@ -267,6 +269,8 @@ It was originally inspired by the Multics SubSystem library.
 %patch58 -p1
 %patch59 -p1
 %patch60 -p1
+%patch61 -p1
+%patch62 -p1
 
 %build
 %configure CFLAGS="$RPM_OPT_FLAGS -fno-strict-aliasing" \
@@ -429,6 +433,10 @@ exit 0
 %{_libdir}/pkgconfig/ss.pc
 
 %changelog
+* Mon Sep 01 2025 Pavel Reichl <preichl@redhat.com>
+- libext2fs: fix unix_io's Direct I/O support
+- Related: RHEL-106939
+
 * Thu Jan 23 2025 Pavel Reichl <preichl@redhat.com> 1.45.6-6
 - Fix e2fsprogs: online resize fails
 - Related: RHEL-60512
