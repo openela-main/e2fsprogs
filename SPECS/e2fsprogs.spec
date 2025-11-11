@@ -1,7 +1,7 @@
 Summary: Utilities for managing ext2, ext3, and ext4 file systems
 Name: e2fsprogs
 Version: 1.47.1
-Release: 3%{?dist}
+Release: 4%{?dist}
 
 # License tags based on COPYING file distinctions for various components
 License: GPLv2
@@ -39,6 +39,7 @@ BuildRequires: make
 BuildRequires: gnupg2 xz
 
 Patch0:	rhelonly-metadata_csum_orphan_file_off.patch
+Patch1: 0002-master-debugfs-byteswap-dirsearch-dirent-buf-on-big-endian-.patch
 
 %description
 The e2fsprogs package contains a number of utilities for creating,
@@ -168,7 +169,8 @@ managed device with some free space available in respective volume group.
 xzcat '%{SOURCE0}' | %{gpgverify} --keyring='%{SOURCE2}' --signature='%{SOURCE1}' --data=-
 %setup -q
 
-%patch0 -p1
+%patch -p1 0
+%patch -p1 1
 
 # Remove flawed tests
 rm -rf tests/m_rootdir_acl
@@ -338,6 +340,10 @@ make PRINT_FAILED=yes fullcheck
 %{_udevdir}/96-e2scrub.rules
 
 %changelog
+* Tue Jun 24 2025 Pavel Reichl <preichl@redhat.com> - 1.47.1-4
+- debugfs: byteswap dirsearch dirent buf on big endian systems
+  Resolves: RHEL-74431
+
 * Tue Oct 29 2024 Troy Dawson <tdawson@redhat.com> - 1.47.1-3
 - Bump release for October 2024 mass rebuild:
   Resolves: RHEL-64018
