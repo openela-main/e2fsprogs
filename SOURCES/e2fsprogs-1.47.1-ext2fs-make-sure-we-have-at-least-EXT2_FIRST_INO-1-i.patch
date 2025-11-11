@@ -1,0 +1,63 @@
+From 196cd1224ccaf5ca76540fc0a6238695d4476ca9 Mon Sep 17 00:00:00 2001
+From: Li Dongyang <dongyangli@ddn.com>
+Date: Thu, 20 Jul 2023 22:50:12 +1000
+Subject: [PATCH] ext2fs: make sure we have at least EXT2_FIRST_INO + 1 inodes
+
+When creating a small fs with 100 1k blocks, mke2fs fails with:
+
+Creating filesystem with 100 1k blocks and 8 inodes
+
+Allocating group tables: done
+Writing inode tables: done
+ext2fs_mkdir: Could not allocate inode in ext2 filesystem while creating /lost+found
+
+Increase s_inodes_per_group with a step of 8 to make
+sure we have at least EXT2_FIRST_INO + 1 inodes.
+
+Change-Id: Ib885735641dfa0ed9c6f6a4a1f9afec291673126
+Signed-off-by: Li Dongyang <dongyangli@ddn.com>
+Reviewed-by: Andreas Dilger <adilger@dilger.ca>
+Link: https://lore.kernel.org/r/20230720125012.641504-1-dongyangli@ddn.com
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Pavel Reichl <preichl@redhat.com>
+---
+ lib/ext2fs/initialize.c | 16 +++++++++-------
+ 1 file changed, 9 insertions(+), 7 deletions(-)
+
+diff --git a/lib/ext2fs/initialize.c b/lib/ext2fs/initialize.c
+index edd692bb..e96f3cab 100644
+--- a/lib/ext2fs/initialize.c
++++ b/lib/ext2fs/initialize.c
+@@ -307,13 +307,6 @@ retry:
+ 	else
+ 		set_field(s_inodes_count, ext2fs_blocks_count(super) / i);
+ 
+-	/*
+-	 * Make sure we have at least EXT2_FIRST_INO + 1 inodes, so
+-	 * that we have enough inodes for the filesystem(!)
+-	 */
+-	if (super->s_inodes_count < EXT2_FIRST_INODE(super)+1)
+-		super->s_inodes_count = EXT2_FIRST_INODE(super)+1;
+-
+ 	/*
+ 	 * There should be at least as many inodes as the user
+ 	 * requested.  Figure out how many inodes per group that
+@@ -375,6 +368,15 @@ ipg_retry:
+ 	}
+ 	super->s_inodes_count = super->s_inodes_per_group *
+ 		fs->group_desc_count;
++	/*
++	 * Make sure we have at least EXT2_FIRST_INO + 1 inodes, so
++	 * that we have enough inodes for the filesystem(!)
++	 */
++	if (super->s_inodes_count < EXT2_FIRST_INODE(super)+1) {
++		ipg += 8;
++		goto ipg_retry;
++	}
++
+ 	super->s_free_inodes_count = super->s_inodes_count;
+ 
+ 	/*
+-- 
+2.50.0
+
