@@ -1,10 +1,10 @@
 Summary: Utilities for managing ext2, ext3, and ext4 file systems
 Name: e2fsprogs
 Version: 1.47.1
-Release: 4%{?dist}
+Release: 5%{?dist}
 
 # License tags based on COPYING file distinctions for various components
-License: GPLv2
+License: GPL-2.0-only
 Source0: https://www.kernel.org/pub/linux/kernel/people/tytso/%{name}/v%{version}/%{name}-%{version}.tar.xz
 Source1: https://www.kernel.org/pub/linux/kernel/people/tytso/%{name}/v%{version}/%{name}-%{version}.tar.sign
 # GPG key fetched from https://thunk.org/tytso/tytso-key.asc
@@ -58,7 +58,7 @@ performance of an ext2, ext3, or ext4 file system.
 
 %package libs
 Summary: Ext2/3/4 file system specific shared libraries
-License: GPLv2 and LGPLv2
+License: GPL-2.0-only AND LGPL-2.0-only
 Requires: libcom_err%{?_isa} = %{version}-%{release}
 
 %description libs
@@ -70,7 +70,7 @@ from user space.
 
 %package static
 Summary: Ext2/3/4 file system specific static libraries
-License: GPLv2 and LGPLv2
+License: GPL-2.0-only AND LGPL-2.0-only
 
 %description static
 E2fsprogs-static contains all static libraries built from e2fsprogs,
@@ -81,7 +81,7 @@ from user space, and perform other useful functions.
 
 %package devel
 Summary: Ext2/3/4 file system specific libraries and headers
-License: GPLv2 and LGPLv2
+License: GPL-2.0-only AND LGPL-2.0-only
 Requires: e2fsprogs-libs%{?_isa} = %{version}-%{release}
 Requires: libcom_err-devel%{?_isa} = %{version}-%{release}
 Requires: gawk
@@ -148,7 +148,7 @@ It was originally inspired by the Multics SubSystem library.
 
 %package -n e2scrub
 Summary: Online Ext4 metadata consistency checking tool and service
-License: GPLv2 and LGPLv2
+License: GPL-2.0-only AND LGPL-2.0-only
 Recommends: /usr/sbin/sendmail
 Requires: systemd
 Requires: util-linux
@@ -340,6 +340,10 @@ make PRINT_FAILED=yes fullcheck
 %{_udevdir}/96-e2scrub.rules
 
 %changelog
+* Wed Nov 19 2025 Pavel Reichl <preichl@redhat.com> - 1.47.1-5
+- Bump release for SPDX rebuild
+- Related: RHEL-119484
+
 * Tue Jun 24 2025 Pavel Reichl <preichl@redhat.com> - 1.47.1-4
 - debugfs: byteswap dirsearch dirent buf on big endian systems
   Resolves: RHEL-74431
